@@ -55,7 +55,8 @@ hash to it, and the file is looked upon in the \$JTBUILDS path $JTBUILDS
 EOF
 			exit 0;;
 		*) if [[ -z "$HASH" && ${1:0:1} != - ]]; then
-			HASH=$1
+			HASH=`git rev-parse --short $1`
+			HASH=${HASH:0:7}
 		else
 			echo "Do not know what to do with arguments $HASH and $1"
 			exit 1
@@ -169,6 +170,9 @@ for t in mist sidi sidi128; do
 done
 jtutil mra --core > $JTBIN/game_list.md
 git add .
+jtutil audit
+mv audit.csv sound_balance.csv
+git add sound_balance.csv
 git commit -m "release for https://github.com/jotego/jtcores/commit/$HASHLONG"
 
 # also mark the commit in jtcores as the current release
