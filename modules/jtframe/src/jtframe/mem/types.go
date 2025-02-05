@@ -195,6 +195,16 @@ type AudioCh struct {
     rout       float64
 }
 
+type AudioPCB struct{
+    Machine     string `yaml:"machine"`
+    Machines    string `yaml:"machines"`
+    Rfb         string `yaml:"rfb"`     // feedback resistor of final opamp
+    Rsums     []string `yaml:"rsums"`   // summing resistor for each channel
+    Pres      []float64 `yaml:"pres`    // pre-gains
+    // Derived, not in YAML
+    Gaincfg     string
+}
+
 type Audio struct {
     Mute    bool   `yaml:"mute"`
     RC         AudioRC `yaml:"rc"`
@@ -204,9 +214,11 @@ type Audio struct {
     Channels []AudioCh `yaml:"channels"`
     // Fractional divider information to generate 192kHz clock
     FracW,FracN,FracM int
+    PCB []AudioPCB `yaml:"pcb"`
     // Derived information
     GlobalPole string
     GlobalFcut int
+    Stereo     bool
 }
 
 type MemConfig struct {
@@ -230,7 +242,6 @@ type MemConfig struct {
     Unused   [4]bool // true for unused banks
     // Derived information
     Ioctl    Ioctl
-    Stereo   bool
     Gfx8     string
     Gfx16    string
     Gfx8b0, Gfx16b0 int

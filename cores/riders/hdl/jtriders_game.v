@@ -280,9 +280,8 @@ jtriders_sound u_sound(
     .pcmd_cs    ( pcmd_cs       ),
     .pcmd_ok    ( pcmd_ok       ),
 
+    .snd_en     ( snd_en        ),
     // Sound output
-    .fm_l       ( fm_l          ),
-    .fm_r       ( fm_r          ),
     .k60_l      ( k60_l         ),
     .k60_r      ( k60_r         )
 );

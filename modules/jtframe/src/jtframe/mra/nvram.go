@@ -18,9 +18,11 @@
 package mra
 
 import (
-	"fmt"
+	"log"
 	"path/filepath"
 	"os"
+
+	"github.com/jotego/jtframe/common"
 )
 
 func make_nvram(root *XMLNode, machine *MachineXML, cfg Mame2MRA, corename string) {
@@ -46,7 +48,7 @@ func make_nvram(root *XMLNode, machine *MachineXML, cfg Mame2MRA, corename strin
 }
 
 func nvram_file( machine *MachineXML, core string) ([]byte, error) {
-	cfgdir := filepath.Join(os.Getenv("JTROOT"),"cores",core,"cfg")
+	cfgdir :=  common.ConfigFilePath(core,"")
 	fname := filepath.Join(cfgdir,machine.Name+".nvm")
 	f, e := os.Open(fname)
 	if e!=nil {
@@ -91,7 +93,7 @@ func nvram_rom(root *XMLNode, machine *MachineXML, cfg Mame2MRA) {
 	roms := extract_region(reg, machine.Rom, cfg.ROM.Remove)
 	if len(roms)==0 { return }
 	if len(roms)!=1 {
-		fmt.Printf("Warning: more than one ROM for NVRAM section in %s. Skipping it\n", machine.Name)
+		log.Printf("Warning: more than one ROM for NVRAM section in %s. Skipping it\n", machine.Name)
 		return
 	}
 	rom := root.AddNode("rom").AddAttr("index", "2").AddAttr("zip",zipName(machine,cfg))

@@ -71,7 +71,7 @@ module jttmnt_sound(
     // Sound output
     output reg signed [15:0] title,
     output     signed [15:0] fm_l,  fm_r, k60_l, k60_r,
-    output     signed [11:0] pcm,
+    output     signed [10:0] pcm,
     output     signed [ 8:0] upd,
     // Debug
     input         [ 7:0] debug_bus,
@@ -296,6 +296,7 @@ jt053260 u_k53260(
     .romd_cs    ( pcmd_cs   ),
     // .romd_ok    ( pcmd_ok   ),
     // sound output - raw
+    .ch_en      ( 5'h1f     ),
     .aux_l      ( 16'd0     ),
     .aux_r      ( 16'd0     ),
     .snd_l      ( k60_l     ),

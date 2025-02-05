@@ -83,13 +83,13 @@ assign dip_flip    = ~status[1];
         `ifdef DIP_TEST
         assign dip_test = 0;
         `else
-        assign dip_test = ~game_test;
+        assign dip_test = game_test;
         `endif
     `else
-        assign dip_test = ~(status[10] | game_test); // assumes it is always active low
+        assign dip_test = ~status[10] & game_test; // assumes it is always active low
     `endif
 `else
-assign dip_test = ~game_test;
+assign dip_test = game_test;
 `endif
 
 wire [1:0] ar = status[17:16];    // only MiSTer
@@ -127,9 +127,9 @@ generate
         initial rot_control = 0;
         initial rot_osdonly = 0;
     end else begin // MiST derivativatives are always vertical
-        assign tate   = 1'b1 & core_mod[0];
+        assign tate   = core_mod[0];
         always @(posedge clk) begin
-            rot_control <= (status[2]^XOR_ROT[0])&core_mod[0]&rot_osdonly;
+            rot_control <= (status[2]^XOR_ROT[0]) & tate & rot_osdonly;
             rot_osdonly <= !status[13];
         end
     end
@@ -154,8 +154,8 @@ always @(posedge clk) begin
     enable_psg  <= ~status[8];
     `endif
     // only for MiSTer
-    hdmi_arx    <= (!ar) ? (swap_ar ? ARX : ARY) : (ar-2'd1);
-    hdmi_ary    <= (!ar) ? (swap_ar ? ARY : ARX) : 13'd0;
+    hdmi_arx    <= ar==0 ? (swap_ar ? ARX : ARY) : {11'd0,ar-2'd1};
+    hdmi_ary    <= ar==0 ? (swap_ar ? ARY : ARX) : 13'd0;
 
     `ifdef SIMULATION
         `ifdef DIP_PAUSE

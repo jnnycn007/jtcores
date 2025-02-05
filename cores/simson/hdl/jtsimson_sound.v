@@ -59,6 +59,7 @@ module jtsimson_sound(
     output signed [15:0] snd_l, snd_r,
     // Debug
     input    [ 7:0] debug_bus,
+    input    [ 5:0] snd_en,
     output   [ 7:0] st_dout
 );
 `ifndef NOSOUND
@@ -114,15 +115,18 @@ always @(posedge clk, posedge rst) begin
 end
 /* verilator tracing_off */
 jtframe_edge #(.QSET(0)) u_edge (
-    .rst    ( rst       ),
+    .rst    ( 1'b0      ),
     .clk    ( clk       ),
-    .edgeof ( sample    ),
+    .edgeof ( rst | sample ),
     .clr    ( nmi_clr   ),
     .q      ( nmi_n     )
 );
 
+reg [10:0] clear_addr;
+always @(posedge clk) clear_addr <= !rst ? 11'd0 : clear_addr + 1'd1;
+
 /* verilator tracing_on */
-jtframe_sysz80 #(.RAM_AW(11),.CLR_INT(1)) u_cpu(
+jtframe_sysz80_nvram #(.RAM_AW(11),.CLR_INT(1)) u_cpu(
     .rst_n      ( ~rst      ),
     .clk        ( clk       ),
     .cen        ( cen_fm    ),
@@ -142,6 +146,10 @@ jtframe_sysz80 #(.RAM_AW(11),.CLR_INT(1)) u_cpu(
     .cpu_din    ( cpu_din   ),
     .cpu_dout   ( cpu_dout  ),
     .ram_dout   ( ram_dout  ),
+    .prog_addr  ( clear_addr),
+    .prog_data  ( 8'd0      ),
+    .prog_din   (           ),
+    .prog_we    ( rst       ),
     // ROM access
     .ram_cs     ( ram_cs    ),
     .rom_cs     ( rom_cs    ),
@@ -169,7 +177,7 @@ jt51 u_jt51(
     .xleft      (           ),
     .xright     (           )
 );
-/* verilator tracing_off */
+/* verilator tracing_on */
 jt053260 u_pcm(
     .rst        ( rst       ),
     .clk        ( clk       ),
@@ -210,6 +218,7 @@ jt053260 u_pcm(
     .romd_cs    ( pcmd_cs   ),
     // .romd_ok    ( pcmd_ok   ),
     // sound output - raw
+    .ch_en      (snd_en[5:1]),
     .aux_l      ( fm_l      ),
     .aux_r      ( fm_r      ),
     .snd_l      ( snd_l     ),

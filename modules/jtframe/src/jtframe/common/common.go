@@ -31,6 +31,13 @@ func Must( e error ) {
 	}
 }
 
+func MustContext( e error, context string ) {
+	if e!=nil {
+		fmt.Printf("%s\n%s\n",context,e.Error())
+		os.Exit(1)
+	}
+}
+
 func ConfigFilePath(core, file string) (full_path string) {
 	if core=="" {
 		panic(fmt.Errorf("Blank core name not valid"))
@@ -45,23 +52,16 @@ func Doc2string(doc string) string {
 	return string(buf)
 }
 
-func Find_in_folders( fname string, paths []string, quit bool ) string {
-	for _, each := range paths {
-		full := filepath.Join(each,fname)
-		f, e := os.Open(full)
+func FindFileInFolders( fname string, all_paths []string ) (string, error) {
+	for _, path := range all_paths {
+		fullpath := filepath.Join(path,fname)
+		f, e := os.Open(fullpath)
+		f.Close()
 		if e==nil {
-			f.Close()
-			return full
+			return fullpath, nil
 		}
 	}
-	if quit {
-		fmt.Printf("Error cannot find file %s in folders:\n",fname)
-		for _, each := range paths {
-			fmt.Println(each)
-		}
-		os.Exit(1)
-	}
-	return ""
+	return "",fmt.Errorf("Error cannot find file %s",fname)
 }
 
 func FileExists(fname string) bool {

@@ -73,7 +73,15 @@ defaults=[
 # verilog: if( prog_addr==0 && prog_we && header ) mycfg <= prog_data;
 info="Describe the header"
 fill=0xff
+# this can be used in mem.yaml for audio gain selection
+PCBs = [
+    { machine=  "aliens"   },
+    { machines=["crimfght","gbusters"] },
+    { machine=  "thunderx" },
+    { machine=  "scontra"  },
+]
 data = [
+	{ pcb_id = true, offset=0 } # filled with the PCB array innformation
 	{ machine="...", setname="...", dev="...", offset=3, data="12 32 43 ..." },
 	...
 ]

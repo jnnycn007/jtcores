@@ -19,11 +19,8 @@ package mra
 
 import (
 	"bufio"
-	"encoding/xml"
 	"fmt"
-	"io/fs"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,22 +35,12 @@ import (
 	"github.com/jotego/jtframe/common"
 )
 
-func (this *StartNode) add_length(pos int) {
-	if this.node != nil {
-		lenreg := pos - this.pos
-		if lenreg > 0 {
-			this.node.name = fmt.Sprintf("%s - length 0x%X (%d bits)", this.node.name, lenreg,
-				int(math.Ceil(math.Log2(float64(lenreg)))))
-		}
-	}
-}
-
 func Run(args Args) {
 	pocket_clear()
 	defer close_allzip()
 	parse_args(&args)
 	macros.MakeMacros(args.Core,args.Target)
-	mra_cfg := ParseToml( args.Toml_path, args.Core)
+	mra_cfg, e := ParseTomlFile(args.Core); common.MustContext(e,"while parsing TOML file")
 	if Verbose {
 		fmt.Println("Parsing", args.Xml_path)
 	}
@@ -90,7 +77,7 @@ func Run(args Args) {
 	}
 	// Dump MRA is delayed for later so we get all the parent names collected
 	if Verbose || len(data_queue) == 0 {
-		fmt.Println("Total: ", len(data_queue), " games")
+		log.Println("Total: ", len(data_queue), " games")
 	}
 	main_copied := args.SkipMRA
 	old_deleted := false
@@ -104,14 +91,7 @@ func Run(args Args) {
 			if !args.SkipMRA {
 				// Delete old MRA files
 				if !old_deleted {
-					filepath.WalkDir(args.outdir, func(path string, d fs.DirEntry, err error) error {
-						if err == nil {
-							if !d.IsDir() && strings.HasSuffix(path, ".mra") {
-								delete_old_mra(args, path)
-							}
-						}
-						return nil
-					})
+					delete_matching_mra(macros.Get("CORENAME"),args.outdir)
 					old_deleted = true
 				}
 				if !args.SkipROM || args.Md5 {
@@ -139,7 +119,7 @@ func Run(args Args) {
 	}
 	dump_setnames( args.Core, valid_setnames )
 	if !main_copied {
-		fmt.Printf("Warning (%s): No single MRA was highlighted as the main one.\nSet it in the TOML file parse.main key\n", args.Core)
+		log.Printf("Warning (%s): No single MRA was highlighted as the main one.\nSet it in the TOML file parse.main key\n", args.Core)
 	}
 	if !args.SkipPocket {
 		pocket_save()
@@ -268,29 +248,6 @@ func fix_filename(filename string) string {
 	x := strings.ReplaceAll(filename, "World?", "World")
 	x = rm_spsp(x)
 	return strings.ReplaceAll(x, "?", "x")
-}
-
-func delete_old_mra(args Args, path string) {
-	mradata, e := os.ReadFile(path)
-	if e != nil {
-		fmt.Println("Cannot read ", path)
-		os.Exit(1)
-	}
-	var testmra MRA
-	e = xml.Unmarshal(mradata, &testmra)
-	if e != nil {
-		fmt.Println("Cannot Unmarshal ", path, "\n\t", e)
-		os.Exit(1)
-	}
-	if strings.ToUpper(testmra.Rbf) == macros.Get("CORENAME") {
-		if e = os.Remove(path); e != nil {
-			fmt.Println("Cannot delete ", path)
-			os.Exit(1)
-		}
-		if Verbose {
-			fmt.Println("Deleted ", path)
-		}
-	}
 }
 
 func is_main( machine *MachineXML, mra_cfg Mame2MRA ) bool {
@@ -423,39 +380,6 @@ func guess_world_region(name string) string {
 }
 
 func set_rbfname(root *XMLNode, machine *MachineXML, cfg Mame2MRA, args Args) *XMLNode {
-// 	name := cfg.Rbf.Name
-// check_devs:
-// 	for _, cfg_dev := range cfg.Rbf.Dev {
-// 		for _, mac_dev := range machine.Devices {
-// 			if cfg_dev.Dev == mac_dev.Name {
-// 				name = cfg_dev.Rbf
-// 				break check_devs
-// 			}
-// 		}
-// 	}
-// 	// Machine definitions override DEV definitions
-// 	for _, each := range cfg.Rbf.Machines {
-// 		if each.Machine == "" {
-// 			continue
-// 		}
-// 		if machine.Cloneof == each.Machine || machine.Name == each.Machine {
-// 			name = each.Rbf
-// 			break
-// 		}
-// 	}
-// 	// setname definitions have the highest priority
-// 	for _, each := range cfg.Rbf.Machines {
-// 		if each.Setname == "" {
-// 			continue
-// 		}
-// 		if machine.Name == each.Setname {
-// 			name = each.Rbf
-// 			break
-// 		}
-// 	}
-// 	if name == "" {
-// 		fmt.Printf("\tWarning: no RBF name defined\n")
-// 	}
 	return root.AddNode("rbf", cfg.rbf)
 }
 
@@ -525,9 +449,12 @@ func make_mra(machine *MachineXML, cfg Mame2MRA, args Args) (*XMLNode, string, i
 		root.AddNode(t.Tag, t.Value)
 	}
 	// ROM load
-	make_ROM(&root, machine, cfg, args)
+	if e:=make_ROM(&root, machine, cfg, args); e!=nil {
+		fmt.Println(e)
+		os.Exit(1)
+	}
 	// Beta
-	if betas.All.IsBetaFor(corename,"mister") {
+	if betas.IsBetaFor(corename,"mister") {
 		n := root.AddNode("rom").AddAttr("index", "17")
 		// MiSTer makes a mess of md5 calculations, so I am not using that
 		n.AddAttr("zip", "jtbeta.zip").AddAttr("md5", "None").AddAttr("asm_md5", betas.Md5sum)
@@ -633,7 +560,7 @@ func make_buttons(root *XMLNode, machine *MachineXML, cfg Mame2MRA, args Args) {
 		if buttons[k] != "-" {
 			count++
 			if count > 6 {
-				fmt.Println("Warning: cannot support more than 6 buttons")
+				log.Println("Warning: cannot support more than 6 buttons")
 				break
 			}
 		}

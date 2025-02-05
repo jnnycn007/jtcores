@@ -17,6 +17,8 @@
 # Version: 1.0
 # Date: 7-7-2022
 
+source $JTFRAME/bin/jtcore-funcs
+
 function show_usage() {
     cat << EOF
 JTCORE compilation tool. (c) Jose Tejada 2019-2023, @topapate
@@ -56,6 +58,7 @@ usage: jtcore <corename> [options]
     --mrpasswd      Sets the SSH pasword to use on MiSTer
     --nodbg         Defines JTFRAME_RELEASE
     --nosta         skips the STA check and marks as PASS compilations with timing problems
+    --nolinter      Do not run the verilator linter
     --program | -p  Programs the FPGA via JTAG
     --quick |-q     Quick compilation. Defines NOSOUND and JTFRAME_OSD_NOLOGO
                     Disables JTFRAME_CREDITS and HQ2X.
@@ -84,6 +87,7 @@ MACROS=
 OUTPUTDIR=output_files
 PRJ=
 NODBG=
+NOLINTER=
 PROG=FALSE
 SEED=1
 SKIPTIMING=
@@ -171,6 +175,7 @@ function parse_args {
                 UNMACROS="$UNMACROS JTFRAME_CREDITS"
                 TARGET=mister;;
             --nodbg) NODBG=--nodbg; MACROS="$MACROS JTFRAME_RELEASE=1";;
+            --nolinter) NOLINTER=1;;
             --nosta) SKIPTIMING=1;;
             --sim)   SIM=TRUE;;
             --sd)
@@ -364,19 +369,11 @@ function parse_macros {
 function copy_templates {
     jtframe parse $PRJ $JTFRAME/target/$TARGET/$TARGET.qpf `macros2def` --output $PRJPATH/$TARGET/$corename.qpf || exit $?
     jtframe parse $PRJ $JTFRAME/target/$TARGET/$TARGET.qsf `macros2def` --output $PRJPATH/$TARGET/$corename.qsf || exit $?
-    # TCL in HDL folder is always appended
-    TCL=$PRJPATH/cfg/$corename.tcl
     MACROS_FILE=$PRJPATH/cfg/macros.def
     QSF=$PRJPATH/$TARGET/$corename.qsf
-    if [ -e $TCL ]; then
-        cat $TCL >> $QSF
-    fi
-    # TCL in platform folder is added if it exists
-    if [ -e $PRJPATH/$TARGET/$corename.tcl ]; then
-        cat $PRJPATH/$TARGET/$corename.tcl >> $QSF
-    fi
     # Add definitions in "macros" files
     if [ -e $MACROS_FILE ]; then
+        echo >> $QSF # add blank line
         (parse_macros quartus | sort >> $QSF) || exit $?
         if [ -n "$SHOWMACROS" ]; then
             gawk -f $JTFRAME/bin/jtmacros.awk target=$TARGET $MACROS_FILE
@@ -384,16 +381,6 @@ function copy_templates {
         fi
         # Prepare config string
         parse_macros cfgstr > $JTROOT/log/$TARGET/cfgstr || exit $?
-    fi
-    # Copy SDC file and SDRAM constraints
-    if is_mister_family; then
-        if grep JTFRAME_SDRAM96 $QSF; then
-            cp $JTFRAME/target/$TARGET/syn/sdram_clk96.sdc $PRJPATH/$TARGET/sys_top.sdc
-        else
-            cp $JTFRAME/target/$TARGET/syn/sdram_clk48.sdc $PRJPATH/$TARGET/sys_top.sdc
-            cat $JTFRAME/target/$TARGET/syn/slew_rate.tcl >> $QSF
-        fi
-        cat $JTFRAME/target/$TARGET/hdl/sys/sys_top.sdc >> $PRJPATH/$TARGET/sys_top.sdc
     fi
 }
 
@@ -444,6 +431,9 @@ if [ $SKIP_COMPILE = FALSE ]; then
     rm -rf $PRJPATH/$TARGET
     mkdir -p $PRJPATH/$TARGET
     cd $PRJPATH/$TARGET || exit 1
+    if [ -z "$NOLINTER" ]; then
+        lint_core $PRJ
+    fi
     ############################################
     # Credits via jtframe_credits:
     if [[ -e $PRJPATH/cfg/msg ]]; then

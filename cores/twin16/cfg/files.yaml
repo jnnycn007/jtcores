@@ -9,12 +9,6 @@ fround:
 tmnt:
   - get:
     - jttmnt_sound.v
-simson:
-  - get:
-    - jt053260.v
-flane:
-  - get:
-    - jt007232.v
 jtframe:
   - get:
     - jtframe_edge.v
@@ -34,4 +28,6 @@ jtframe:
     get:
       - jtframe_dual_ram16.v
 jt51:
+jt053260:
 jt7759:
+jt007232:
