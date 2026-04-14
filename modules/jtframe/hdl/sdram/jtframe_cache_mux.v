@@ -18,6 +18,7 @@
 
 module jtframe_cache_mux #(
     parameter SDRAM_AW  = 23,
+              ENDIAN    = 0,
               AW0       = 23,
               BLOCKS0   = 8,
               BLKSIZE0  = 1024,
@@ -319,6 +320,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS0  ),
     .BLKSIZE( BLKSIZE0 ),
     .DW     ( DW0      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache0 (
     .rst        ( rst                           ),
@@ -340,6 +342,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS1  ),
     .BLKSIZE( BLKSIZE1 ),
     .DW     ( DW1      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache1 (
     .rst        ( rst                           ),
@@ -361,6 +364,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS2  ),
     .BLKSIZE( BLKSIZE2 ),
     .DW     ( DW2      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache2 (
     .rst        ( rst                           ),
@@ -382,6 +386,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS3  ),
     .BLKSIZE( BLKSIZE3 ),
     .DW     ( DW3      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache3 (
     .rst        ( rst                           ),
@@ -403,6 +408,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS4  ),
     .BLKSIZE( BLKSIZE4 ),
     .DW     ( DW4      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache4 (
     .rst        ( rst                           ),
@@ -424,6 +430,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS5  ),
     .BLKSIZE( BLKSIZE5 ),
     .DW     ( DW5      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache5 (
     .rst        ( rst                           ),
@@ -445,6 +452,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS6  ),
     .BLKSIZE( BLKSIZE6 ),
     .DW     ( DW6      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache6 (
     .rst        ( rst                           ),
@@ -466,6 +474,7 @@ jtframe_cache #(
     .BLOCKS ( BLOCKS7  ),
     .BLKSIZE( BLKSIZE7 ),
     .DW     ( DW7      ),
+    .ENDIAN ( ENDIAN   ),
     .EW     ( SDRAM_AW )
 ) u_cache7 (
     .rst        ( rst                           ),
