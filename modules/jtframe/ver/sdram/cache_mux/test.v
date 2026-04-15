@@ -38,6 +38,7 @@ wire                ctl_rd;
 wire [15:0]         ctl_dout;
 wire                ctl_ack;
 wire                ctl_dst;
+wire                ctl_dok;
 wire                ctl_rdy;
 wire                init;
 
@@ -195,6 +196,7 @@ jtframe_cache_mux #(
     .din        ( ctl_dout  ),
     .ack        ( ctl_ack   ),
     .dst        ( ctl_dst   ),
+    .dok        ( ctl_dok   ),
     .rdy        ( ctl_rdy   )
 );
 
@@ -215,7 +217,7 @@ jtframe_burst_sdram #(
     .dout       ( ctl_dout     ),
     .ack        ( ctl_ack      ),
     .dst        ( ctl_dst      ),
-    .dok        (              ),
+    .dok        ( ctl_dok      ),
     .rdy        ( ctl_rdy      ),
     .prog_en    ( ioctl_rom    ),
     .prog_addr  ( prog_addr    ),
