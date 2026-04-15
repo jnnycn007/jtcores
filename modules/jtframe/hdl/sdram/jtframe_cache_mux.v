@@ -125,6 +125,7 @@ module jtframe_cache_mux #(
     input      [15:0]           din,
     input                       ack,
     input                       dst,
+    input                       dok,
     input                       rdy
 );
 
@@ -141,6 +142,7 @@ wire ext_rd0, ext_rd1, ext_rd2, ext_rd3;
 wire ext_rd4, ext_rd5, ext_rd6, ext_rd7;
 wire [7:0] ext_ack;
 wire [7:0] ext_dst;
+wire [7:0] ext_dok;
 wire [7:0] ext_rdy;
 
 wire [7:0] req = {
@@ -168,6 +170,17 @@ assign ext_dst = {
     active && active_sel==3'd2 && dst,
     active && active_sel==3'd1 && dst,
     active && active_sel==3'd0 && dst
+};
+
+assign ext_dok = {
+    active && active_sel==3'd7 && dok,
+    active && active_sel==3'd6 && dok,
+    active && active_sel==3'd5 && dok,
+    active && active_sel==3'd4 && dok,
+    active && active_sel==3'd3 && dok,
+    active && active_sel==3'd2 && dok,
+    active && active_sel==3'd1 && dok,
+    active && active_sel==3'd0 && dok
 };
 
 assign ext_rdy = {
@@ -334,6 +347,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd0                       ),
     .ext_ack    ( ext_ack[0]                    ),
     .ext_dst    ( ext_dst[0]                    ),
+    .ext_dok    ( ext_dok[0]                    ),
     .ext_rdy    ( ext_rdy[0]                    )
 );
 
@@ -356,6 +370,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd1                       ),
     .ext_ack    ( ext_ack[1]                    ),
     .ext_dst    ( ext_dst[1]                    ),
+    .ext_dok    ( ext_dok[1]                    ),
     .ext_rdy    ( ext_rdy[1]                    )
 );
 
@@ -378,6 +393,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd2                       ),
     .ext_ack    ( ext_ack[2]                    ),
     .ext_dst    ( ext_dst[2]                    ),
+    .ext_dok    ( ext_dok[2]                    ),
     .ext_rdy    ( ext_rdy[2]                    )
 );
 
@@ -400,6 +416,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd3                       ),
     .ext_ack    ( ext_ack[3]                    ),
     .ext_dst    ( ext_dst[3]                    ),
+    .ext_dok    ( ext_dok[3]                    ),
     .ext_rdy    ( ext_rdy[3]                    )
 );
 
@@ -422,6 +439,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd4                       ),
     .ext_ack    ( ext_ack[4]                    ),
     .ext_dst    ( ext_dst[4]                    ),
+    .ext_dok    ( ext_dok[4]                    ),
     .ext_rdy    ( ext_rdy[4]                    )
 );
 
@@ -444,6 +462,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd5                       ),
     .ext_ack    ( ext_ack[5]                    ),
     .ext_dst    ( ext_dst[5]                    ),
+    .ext_dok    ( ext_dok[5]                    ),
     .ext_rdy    ( ext_rdy[5]                    )
 );
 
@@ -466,6 +485,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd6                       ),
     .ext_ack    ( ext_ack[6]                    ),
     .ext_dst    ( ext_dst[6]                    ),
+    .ext_dok    ( ext_dok[6]                    ),
     .ext_rdy    ( ext_rdy[6]                    )
 );
 
@@ -488,6 +508,7 @@ jtframe_cache #(
     .ext_rd     ( ext_rd7                       ),
     .ext_ack    ( ext_ack[7]                    ),
     .ext_dst    ( ext_dst[7]                    ),
+    .ext_dok    ( ext_dok[7]                    ),
     .ext_rdy    ( ext_rdy[7]                    )
 );
 

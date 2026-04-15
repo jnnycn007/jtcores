@@ -377,6 +377,7 @@ jtframe_cache_mux #(
     .din       ( data_read  ),
     .ack       ( burst_ack   ),
     .dst       ( burst_dst   ),
+    .dok       ( burst_dok   ),
     .rdy       ( burst_rdy   )
 );
 assign burst_wr  = 1'b0;

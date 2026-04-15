@@ -38,6 +38,7 @@ module jtframe_cache #(parameter
     output reg              ext_rd,
     input                   ext_ack,
     input                   ext_dst,
+    input                   ext_dok,
     input                   ext_rdy
 );
 
@@ -78,7 +79,7 @@ wire [OFFW-1:0] req_off  = req_addr[OFFW-1:0];
 wire [UW-1:0] base_addr  = { pend_uaddr[UW-1:OFFW], {OFFW{1'b0}} };
 wire [AW-1:0] base_byte  = { base_addr, {AW0{1'b0}} };
 wire [BW-1:0] victim     = lfsr[BW-1:0];
-wire          wr_en      = wait_data && (fill_active || ext_dst);
+wire          wr_en      = wait_data && ext_dok;
 
 wire [DW-1:0] hit_data;
 wire          fill_capture;
