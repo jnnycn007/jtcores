@@ -40,6 +40,8 @@ Coverage:
 - repeated accesses inside the same line are hits and do not open new bursts
 - first and last units inside a line return the expected data
 - crossing from one line into the next causes a new miss
+- four different lines that map to the same set can coexist before the first
+  one is re-read as a hit
 - 32-bit little-endian read assembly is checked against the backing SDRAM words
 
 This is the main read-only sanity test for line fill and hit behavior.
@@ -146,16 +148,16 @@ incidentally exercised:
 - simultaneous `rd` and `wr` rising edges and the documented read-priority rule
 - illegal consumer behavior such as changing `addr`, `din`, or `wdsn` before
   `ok`
-- victim selection policy with `BLOCKS > 1` on dirty write-back paths
-- invalid-block preference, pseudo-random victim choice, and protection of the
-  last accessed block from eviction
+- victim selection policy on dirty write-back paths beyond the observed
+  set-associative miss traffic
+- exact replacement ordering once a set overflows after all its ways are valid
 - explicit checking of `ext_dst`; the cache tests use the normal burst path, but
   they do not assert first-beat marking semantics themselves
 - explicit checking of refresh deferral or burst/refresh interaction beyond the
   nominal periodic `rfsh` stimulus
 - SDRAM bank selection other than bank 0
 - cache parameter sweeps beyond the tested set:
-  `BLKSIZE=1024`, `BLOCKS=2` in `read`, `BLOCKS=1` in `rw` and `big_endian`,
+  `BLKSIZE=1024`, `BLOCKS=8` in `read`, `BLOCKS=1` in `rw` and `big_endian`,
   and `BLOCKS=32` in `stress` and `stress64-128`
 - `DW=32`, `ENDIAN=1` coverage outside the dedicated `big_endian` and `stress`
   tests

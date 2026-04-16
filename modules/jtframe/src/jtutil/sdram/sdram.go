@@ -333,7 +333,7 @@ func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCache
 
 func validateSimDataWidth(kind, name string, data_width int, big_endian bool) error {
 	switch data_width {
-	case 8, 16, 32:
+	case 8, 16, 32, 64, 128:
 	default:
 		return fmt.Errorf("%s %s uses unsupported data_width %d", kind, name, data_width)
 	}

@@ -4,9 +4,9 @@ module cache_read_env #(parameter
     DW       = 16,
     ENDIAN   = 0,
     BLKSIZE  = 1024,
-    BLOCKS   = 2,
+    BLOCKS   = 8,
     CACHE_AW = 23,
-    WORDS    = 1024
+    WORDS    = 4096
 );
 
 `include "test_tasks.vh"
@@ -278,7 +278,7 @@ task run;
 
         repeat (20) @(posedge clk);
 
-        for( idx=0; idx<(2*BLKSIZE); idx=idx+1 ) begin
+        for( idx=0; idx<(8*BLKSIZE); idx=idx+1 ) begin
             preload_byte(idx, pattern(idx));
         end
 
@@ -293,6 +293,10 @@ task run;
         read_req(LINE_UNITS,    1);
         read_req(LINE_UNITS+1,  0);
         read_req((2*LINE_UNITS)-1, 0);
+        read_req(2*LINE_UNITS,  1);
+        read_req(4*LINE_UNITS,  1);
+        read_req(6*LINE_UNITS,  1);
+        read_req(0,             0);
     end
 endtask
 
