@@ -51,6 +51,7 @@ wire        sdram_ncas;
 wire        sdram_nras;
 wire        sdram_ncs;
 wire        sdram_cke;
+wire        cache_busy = u_cache.st != 5'd0;
 
 reg [15:0] exp_mem [0:WORDS-1];
 reg [15:0] expected;
@@ -167,8 +168,8 @@ mt48lc16m16a2 u_sdram (
 `ifdef DEBUG
 always @(negedge clk) begin
     if( cache_rd || cache_ok || ext_rd || ext_ack || ext_dok || ext_rdy ) begin
-        $display("%t rd=%b ok=%b addr=%0d dout=%04x miss=%b fill_done=%b fill_word=%0d ext_rd=%b ack=%b dst=%b dok=%b rdy=%b din=%04x",
-            $time, cache_rd, cache_ok, cache_addr, cache_dout, u_cache.miss_busy, u_cache.fill_done, u_cache.fill_word,
+        $display("%t rd=%b ok=%b addr=%0d dout=%04x busy=%b st=%0d tail=%b stream=%0d ext_rd=%b ack=%b dst=%b dok=%b rdy=%b din=%04x",
+            $time, cache_rd, cache_ok, cache_addr, cache_dout, cache_busy, u_cache.st, u_cache.fill_tail_seen, u_cache.stream_word,
             ext_rd, ext_ack, ext_dst, ext_dok, ext_rdy, ext_din);
     end
 end
@@ -243,7 +244,7 @@ task cache_request(
     integer cycles;
     integer ack_before;
     begin
-        while( cache_ok || u_cache.miss_busy ) @(negedge clk);
+        while( cache_ok || cache_busy ) @(negedge clk);
         ack_before = ack_count;
         @(negedge clk);
         cache_addr <= req_addr;
@@ -260,8 +261,8 @@ task cache_request(
         cache_rd <= 1'b0;
         if( cache_dout !== exp_word ) begin
             $display("Cache returned %04X instead of %04X at word %0d", cache_dout, exp_word, req_addr);
-            $display("  ack=%b dst=%b dok=%b rdy=%b ext_din=%04x fill_word=%0d miss=%b ok=%b",
-                ext_ack, ext_dst, ext_dok, ext_rdy, ext_din, u_cache.fill_word, u_cache.miss_busy, cache_ok);
+            $display("  ack=%b dst=%b dok=%b rdy=%b ext_din=%04x stream=%0d busy=%b st=%0d ok=%b",
+                ext_ack, ext_dst, ext_dok, ext_rdy, ext_din, u_cache.stream_word, cache_busy, u_cache.st, cache_ok);
             fail();
         end
         if( expect_miss ) begin
@@ -271,7 +272,7 @@ task cache_request(
             assert_msg(ack_count == ack_before, "Cache hit must not trigger a new SDRAM burst request");
             assert_msg(cycles <= 3, "Cache hit should complete within three cycles");
         end
-        while( cache_ok || u_cache.miss_busy ) @(negedge clk);
+        while( cache_ok || cache_busy ) @(negedge clk);
         repeat (2) @(negedge clk);
     end
 endtask
