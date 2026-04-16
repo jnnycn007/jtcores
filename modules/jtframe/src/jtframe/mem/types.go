@@ -264,7 +264,7 @@ type SDRAMCfg struct {
 	Banks       []SDRAMBank      `yaml:"banks"`
 	Burst       string           `yaml:"burst"`
 	Big_endian  bool             `yaml:"big_endian"`
-	Cache_lines []SDRAMCacheLine `yaml:"cache-lines"`
+	Cache_lanes []SDRAMCacheLine `yaml:"cache-lanes"`
 	Burst_len   int
 }
 

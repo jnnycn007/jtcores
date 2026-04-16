@@ -334,7 +334,7 @@ func TestCollectSimFiles(t *testing.T) {
 					Sim_big_endian: true,
 				}},
 			}},
-			Cache_lines: []mem.SDRAMCacheLine{{
+			Cache_lanes: []mem.SDRAMCacheLine{{
 				Name:           "line",
 				Cache:          mem.SDRAMCacheCfg{Data_width: 32},
 				At:             mem.SDRAMCacheAddr{Bank: 3, Offset: "0x20", Length: "64B"},
@@ -354,7 +354,7 @@ func TestCollectSimFiles(t *testing.T) {
 		t.Fatalf("unexpected bus sim entry: %+v", all[0])
 	}
 	if all[1].bank != 3 || all[1].offset != 0x40 || all[1].length != 64 || !all[1].big_endian {
-		t.Fatalf("unexpected cache-line sim entry: %+v", all[1])
+		t.Fatalf("unexpected cache-lane sim entry: %+v", all[1])
 	}
 }
 

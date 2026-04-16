@@ -1,6 +1,6 @@
 # Burst SDRAM Cache System
 
-This folder documents the burst-oriented SDRAM path used by JTFRAME cache lines.
+This folder documents the burst-oriented SDRAM path used by JTFRAME cache lanes.
 
 The data path is:
 
@@ -17,11 +17,11 @@ The module-level references are:
 
 ## `mem.yaml` Integration
 
-`jtframe mem` generates the cache mux wiring from `mem.yaml` cache-line entries:
+`jtframe mem` generates the cache mux wiring from `mem.yaml` cache-lane entries:
 
 ```yaml
 sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 8MB }
@@ -33,13 +33,13 @@ Relevant rules:
 - `cache.blocks` sets the number of cache blocks inside `jtframe_cache`
 - `cache.size` is the cache block size in bytes
 - `cache.data_width` is the consumer-side width: `8`, `16`, `32`, `64`, or `128`
-- cache lines must use `size: 16B` or larger
-- `at.bank` maps the line to SDRAM bank `0..3`
+- cache lanes must use `size: 16B` or larger
+- `at.bank` maps the lane to SDRAM bank `0..3`
 - `at.offset` is added by the mux before the request reaches the burst controller
-- `rw: true` is allowed only on cache lines `0..3`; lanes `4..7` are read-only
-- `sdram.big_endian: true` only applies to cache lines with `data_width: 32`
+- `rw: true` is allowed only on cache lanes `0..3`; lanes `4..7` are read-only
+- `sdram.big_endian: true` only applies to cache lanes with `data_width: 32`
 
-Generated game-module ports follow the usual `name_addr`, `name_data`, `name_cs`, `name_ok` pattern, with `name_we`, `name_din`, and `name_dsn` added for writable cache lines.
+Generated game-module ports follow the usual `name_addr`, `name_data`, `name_cs`, `name_ok` pattern, with `name_we`, `name_din`, and `name_dsn` added for writable cache lanes.
 
 ## Consumer Contract
 

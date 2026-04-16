@@ -67,7 +67,7 @@ current folder (or from the explicit command argument).
 
 If ` + "`" + `--sim` + "`" + ` is used, jtutil sdram also patches the generated SDRAM bank files with
 the ` + "`" + `simfile` + "`" + ` entries defined in ` + "`" + `sdram.banks[].buses[]` + "`" + ` and
-` + "`" + `sdram.cache-lines[]` + "`" + `. Files are copied in place at the bank-relative
+` + "`" + `sdram.cache-lanes[]` + "`" + `. Files are copied in place at the bank-relative
 offset defined in mem.yaml, with optional 16/32-bit byte swapping when
 ` + "`" + `sim_big_endian` + "`" + ` is true.
 `,

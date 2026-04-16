@@ -66,7 +66,7 @@ wire {{ data_range . }} {{.Name}}_din;
 wire [ 1:0] {{.Name}}_dsn;
 {{end}}{{end}}
 {{- end}}
-{{- range .SDRAM.Cache_lines}}
+{{- range .SDRAM.Cache_lanes}}
 wire {{ cache_line_addr_range . }} {{.Name}}_addr;
 wire [{{ sub .Cache.Data_width 1 }}:0] {{.Name}}_data;
 wire        {{.Name}}_cs, {{.Name}}_ok;
@@ -95,7 +95,7 @@ wire gfx4_en, gfx8_en, gfx16_en, gfx16b_en, gfx16c_en, ioctl_dwn;
 assign pass_io = header | ioctl_ram;
 assign ioctl_addr_noheader = `ifdef JTFRAME_HEADER header ? ioctl_addr : ioctl_addr - HEADER_LEN `else ioctl_addr `endif ;
 `ifdef JTFRAME_SDRAM_CACHE
-{{- if eq (len .SDRAM.Cache_lines) 0 }}
+{{- if eq (len .SDRAM.Cache_lanes) 0 }}
 assign burst_addr = { (SDRAMW-1){1'b0} };
 assign burst_ba   = 2'd0;
 assign burst_rd   = 1'b0;
@@ -193,8 +193,8 @@ jt{{if .Game}}{{.Game}}{{else}}{{.Core}}{{end}}_game u_game(
     .{{.Name}}   ( {{.Name}} ),
     {{- end}}
     // Memory interface - SDRAM
-    {{- if gt (len .SDRAM.Cache_lines) 0 }}
-    {{- range .SDRAM.Cache_lines}}
+    {{- if gt (len .SDRAM.Cache_lanes) 0 }}
+    {{- range .SDRAM.Cache_lanes}}
     .{{.Name}}_addr ( {{.Name}}_addr ),
     .{{.Name}}_cs   ( {{.Name}}_cs   ),
     .{{.Name}}_ok   ( {{.Name}}_ok   ),
@@ -354,10 +354,10 @@ jtframe_headerbyte #(.AW(6)) u_pcbid(
 );
 `ifdef VERILATOR_KEEP_SDRAM /* verilator tracing_on */ `else /* verilator tracing_off */ `endif
 {{ $assign_holdrst := true }}
-{{- if gt (len .SDRAM.Cache_lines) 0 }}
+{{- if gt (len .SDRAM.Cache_lanes) 0 }}
 jtframe_cache_mux #(
     .SDRAM_AW ( SDRAMW ),
-    .ENDIAN   ( 0 ){{- range $index, $line := .SDRAM.Cache_lines }},
+    .ENDIAN   ( 0 ){{- range $index, $line := .SDRAM.Cache_lanes }},
     .ENDIAN{{$index}} ( {{if and $.SDRAM.Big_endian (eq $line.Cache.Data_width 32)}}1{{else}}0{{end}} ),
     .AW{{$index}}      ( {{ cache_line_aw $line }} ),
     .BLOCKS{{$index}}  ( {{ $line.Cache.Blocks }} ),
@@ -368,7 +368,7 @@ jtframe_cache_mux #(
 ) u_cache(
     .rst       ( rst      ),
     .clk       ( clk      ),
-{{- range $index, $line := .SDRAM.Cache_lines}}
+{{- range $index, $line := .SDRAM.Cache_lanes}}
     .addr{{$index}} ( {{ $line.Name }}_addr ),
     .dout{{$index}} ( {{ $line.Name }}_data ),
     .rd{{$index}}   ( {{ $line.Name }}_cs   ),
@@ -380,7 +380,7 @@ jtframe_cache_mux #(
     .ok{{$index}}   ( {{ $line.Name }}_ok   ),
 {{- end}}
 {{- range $index, $_ := until 8}}
-{{- if ge $index (len $.SDRAM.Cache_lines) }}
+{{- if ge $index (len $.SDRAM.Cache_lanes) }}
     .addr{{$index}} ( 0    ),
     .dout{{$index}} (      ),
     .rd{{$index}}   ( 1'b0 ),

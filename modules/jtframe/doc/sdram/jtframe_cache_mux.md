@@ -63,11 +63,11 @@ use little-endian packing only.
 
 ## Write Lanes
 
-The first four lanes expose write ports because the generated game interface may map writable cache-lines there.
+The first four lanes expose write ports because the generated game interface may map writable cache-lanes there.
 
 Generator rule:
 
-- `rw: true` is valid only for cache-lines `0..3`
+- `rw: true` is valid only for cache-lanes `0..3`
 - lanes `4..7` are always read-only
 
 If a cache line is not writable, the generated `game_sdram.v` wiring ties `wrN` low and feeds neutral `dinN`/`wdsnN` values.

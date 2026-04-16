@@ -93,8 +93,8 @@ audio:
 
 # Details about the SDRAM usage
 sdram:
-  # Use either banks or cache-lines, but not both at the same time
-  # big_endian only applies to cache-lines and is invalid with banks
+  # Use either banks or cache-lanes, but not both at the same time
+  # big_endian only applies to cache-lanes and is invalid with banks
   banks:
     - buses: # connections to bank 0
         - name:
@@ -127,8 +127,8 @@ sdram:
         - name: another bus...
     - buses: # same for bank 3
         - name: another bus...
-  [big_endian: true] # optional for cache-lines; for 32-bit cache lines low SDRAM word goes to dout[31:16]
-  cache-lines:
+  [big_endian: true] # optional for cache-lanes; for 32-bit cache lanes low SDRAM word goes to dout[31:16]
+  cache-lanes:
     - name: tiles
       cache:
         blocks: 32
@@ -143,7 +143,7 @@ sdram:
       # Cache lines are bank-relative and use 16-bit SDRAM word units for offset
       # offset must be either a parameter name or an explicit hexadecimal value
       # length is the address space exposed to the cache client
-      # cache-lines generate jtframe_cache/jtframe_cache_mux based SDRAM access
+      # cache-lanes generate jtframe_cache/jtframe_cache_mux based SDRAM access
       # sdram.big_endian changes 32-bit cache lane ordering in generated RTL
       # simfile and sim_big_endian are only consumed by jtutil sdram --sim
 # BRAM connections

@@ -257,8 +257,8 @@ func collectSimFiles(cfg *mem.MemConfig) ([]sim_file_entry, error) {
 			}
 		}
 	}
-	for _, line := range cfg.SDRAM.Cache_lines {
-		entry, ok, err := makeCacheLineSimFileEntry(resolver, line)
+	for _, line := range cfg.SDRAM.Cache_lanes {
+		entry, ok, err := makeCacheLaneSimFileEntry(resolver, line)
 		if err != nil {
 			return nil, err
 		}
@@ -300,27 +300,27 @@ func makeBusSimFileEntry(resolver *expressionResolver, bank_idx int, bus mem.SDR
 	}, true, nil
 }
 
-func makeCacheLineSimFileEntry(resolver *expressionResolver, line mem.SDRAMCacheLine) (sim_file_entry, bool, error) {
+func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCacheLine) (sim_file_entry, bool, error) {
 	simfile := strings.TrimSpace(line.Simfile)
 	if simfile == "" {
 		return sim_file_entry{}, false, nil
 	}
-	if err := validateSimDataWidth("cache-line", line.Name, line.Cache.Data_width, line.Sim_big_endian); err != nil {
+	if err := validateSimDataWidth("cache-lane", line.Name, line.Cache.Data_width, line.Sim_big_endian); err != nil {
 		return sim_file_entry{}, false, err
 	}
-	offset, err := resolveSimOffset(resolver, line.At.Offset, "cache-line", line.Name)
+	offset, err := resolveSimOffset(resolver, line.At.Offset, "cache-lane", line.Name)
 	if err != nil {
 		return sim_file_entry{}, false, err
 	}
 	length, err := parseSimSize(line.At.Length)
 	if err != nil {
-		return sim_file_entry{}, false, fmt.Errorf("invalid length for cache-line %s: %w", line.Name, err)
+		return sim_file_entry{}, false, fmt.Errorf("invalid length for cache-lane %s: %w", line.Name, err)
 	}
-	if err := validateSimBounds(line.At.Bank, offset, length, "cache-line", line.Name); err != nil {
+	if err := validateSimBounds(line.At.Bank, offset, length, "cache-lane", line.Name); err != nil {
 		return sim_file_entry{}, false, err
 	}
 	return sim_file_entry{
-		kind:       "cache-line",
+		kind:       "cache-lane",
 		name:       line.Name,
 		path:       simfile,
 		bank:       line.At.Bank,

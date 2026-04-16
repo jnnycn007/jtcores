@@ -358,7 +358,7 @@ func Test_make_ioctl_restore_uses_32bit_write_enable_width(t *testing.T) {
 func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
 	sample := `sdram:
   big_endian: true
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 32, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: CHAR, length: 8MB }
@@ -369,43 +369,43 @@ func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
 		t.Fatal(e)
 	}
-	if len(cfg.SDRAM.Cache_lines) != 1 {
-		t.Fatalf("Wrong cache-line count. Got %d, wanted 1", len(cfg.SDRAM.Cache_lines))
+	if len(cfg.SDRAM.Cache_lanes) != 1 {
+		t.Fatalf("Wrong cache-lane count. Got %d, wanted 1", len(cfg.SDRAM.Cache_lanes))
 	}
 	if !cfg.SDRAM.Big_endian {
 		t.Fatal("Expected sdram.big_endian to unmarshal as true")
 	}
-	line := cfg.SDRAM.Cache_lines[0]
+	line := cfg.SDRAM.Cache_lanes[0]
 	if line.Name != "tiles" {
-		t.Fatalf("Wrong cache-line name. Got %s", line.Name)
+		t.Fatalf("Wrong cache-lane name. Got %s", line.Name)
 	}
 	if line.At.Offset != "CHAR" {
-		t.Fatalf("Wrong cache-line offset. Got %s", line.At.Offset)
+		t.Fatalf("Wrong cache-lane offset. Got %s", line.At.Offset)
 	}
 	if line.Simfile != "tilechar.bin" {
-		t.Fatalf("Wrong cache-line simfile. Got %s", line.Simfile)
+		t.Fatalf("Wrong cache-lane simfile. Got %s", line.Simfile)
 	}
 	if !line.Sim_big_endian {
-		t.Fatalf("Expected cache-line sim_big_endian to unmarshal as true")
+		t.Fatalf("Expected cache-lane sim_big_endian to unmarshal as true")
 	}
 }
 
 func Test_SDRAMCacheLine_Unmarshal_RejectsStart(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 32, size: 1kB, data_width: 32 }
       at:    { bank: 3, start: CHAR, length: 8MB }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e == nil {
-		t.Fatal("Expected cache-line start field to be rejected")
+		t.Fatal("Expected cache-lane start field to be rejected")
 	}
 }
 
 func Test_SDRAMCacheLine_Unmarshal_RejectsWrAlias(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 32, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: CHAR, length: 8MB }
@@ -414,10 +414,10 @@ func Test_SDRAMCacheLine_Unmarshal_RejectsWrAlias(t *testing.T) {
 	var cfg MemConfig
 	e := yaml.Unmarshal([]byte(sample), &cfg)
 	if e == nil {
-		t.Fatal("Expected cache-line wr alias to be rejected")
+		t.Fatal("Expected cache-lane wr alias to be rejected")
 	}
 	if !strings.Contains(e.Error(), "Unexpected field wr in cache line") {
-		t.Fatalf("Wrong error for cache-line wr alias. Got %v", e)
+		t.Fatalf("Wrong error for cache-lane wr alias. Got %v", e)
 	}
 }
 
@@ -443,11 +443,11 @@ func Test_SDRAMBus_Simfile_Unmarshal(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_cache_lines(t *testing.T) {
+func Test_check_sdram_cache_lanes(t *testing.T) {
 	cfg := MemConfig{
 		Params: []Param{{Name: "CHAR", Value: "22'h100"}},
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{
+			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
@@ -485,15 +485,15 @@ func Test_check_sdram_cache_lines(t *testing.T) {
 	if cfg.SDRAM.Burst != "1kB" {
 		t.Fatalf("Wrong default burst. Got %s, wanted 1kB", cfg.SDRAM.Burst)
 	}
-	if cfg.SDRAM.Cache_lines[0].Total != 32*1024 {
-		t.Fatalf("Wrong total cache size. Got %d", cfg.SDRAM.Cache_lines[0].Total)
+	if cfg.SDRAM.Cache_lanes[0].Total != 32*1024 {
+		t.Fatalf("Wrong total cache size. Got %d", cfg.SDRAM.Cache_lanes[0].Total)
 	}
 }
 
-func Test_check_sdram_cache_lines_accepts_exact_bank_end(t *testing.T) {
+func Test_check_sdram_cache_lanes_accepts_exact_bank_end(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{{
+			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
@@ -513,10 +513,10 @@ func Test_check_sdram_cache_lines_accepts_exact_bank_end(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_cache_lines_rejects_bank_overflow(t *testing.T) {
+func Test_check_sdram_cache_lanes_rejects_bank_overflow(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{{
+			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
@@ -532,14 +532,14 @@ func Test_check_sdram_cache_lines_rejects_bank_overflow(t *testing.T) {
 	}
 	macros.MakeFromMap(nil)
 	if e := cfg.check_sdram(); e == nil {
-		t.Fatal("Expected cache-line bank overflow to fail")
+		t.Fatal("Expected cache-lane bank overflow to fail")
 	}
 }
 
-func Test_check_sdram_cache_lines_accepts_large_bank_overflow_case(t *testing.T) {
+func Test_check_sdram_cache_lanes_accepts_large_bank_overflow_case(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{{
+			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
@@ -559,17 +559,17 @@ func Test_check_sdram_cache_lines_accepts_large_bank_overflow_case(t *testing.T)
 	}
 }
 
-func Test_check_sdram_cache_lines_rejects(t *testing.T) {
+func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 	cases := []MemConfig{
 		{
 			SDRAM: SDRAMCfg{
 				Banks:       []SDRAMBank{{}},
-				Cache_lines: []SDRAMCacheLine{{Name: "tiles"}},
+				Cache_lanes: []SDRAMCacheLine{{Name: "tiles"}},
 			},
 		},
 		{
 			SDRAM: SDRAMCfg{
-				Cache_lines: []SDRAMCacheLine{{
+				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
 						Blocks:     0,
@@ -582,7 +582,7 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 		},
 		{
 			SDRAM: SDRAMCfg{
-				Cache_lines: []SDRAMCacheLine{
+				Cache_lanes: []SDRAMCacheLine{
 					{Name: "a", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
 					{Name: "b", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
 					{Name: "c", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
@@ -593,7 +593,7 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 		},
 		{
 			SDRAM: SDRAMCfg{
-				Cache_lines: []SDRAMCacheLine{{
+				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
 						Blocks:     1,
@@ -606,7 +606,7 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 		},
 		{
 			SDRAM: SDRAMCfg{
-				Cache_lines: []SDRAMCacheLine{{
+				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
 						Blocks:     1,
@@ -622,7 +622,7 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 		},
 		{
 			SDRAM: SDRAMCfg{
-				Cache_lines: []SDRAMCacheLine{{
+				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
 						Blocks:     1,
@@ -638,7 +638,7 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 	for _, cfg := range cases {
 		macros.MakeFromMap(nil)
 		if e := cfg.check_sdram(); e == nil {
-			t.Fatal("Expected cache-line validation to fail")
+			t.Fatal("Expected cache-lane validation to fail")
 		}
 	}
 }
@@ -686,17 +686,17 @@ func Test_check_sdram_rejects_bank_big_endian(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_cache_lines_accepts_hex_offset(t *testing.T) {
+func Test_check_sdram_cache_lanes_accepts_hex_offset(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{
+			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
-				Cache: SDRAMCacheCfg{
-					Blocks:     1,
-					Size:       "1kB",
-					Data_width: 16,
-				},
+					Cache: SDRAMCacheCfg{
+						Blocks:     1,
+						Size:       "1kB",
+						Data_width: 16,
+					},
 					At: SDRAMCacheAddr{
 						Offset: "0x100",
 						Length: "256kB",
@@ -711,10 +711,10 @@ func Test_check_sdram_cache_lines_accepts_hex_offset(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_cache_lines_rejects_decimal_offset(t *testing.T) {
+func Test_check_sdram_cache_lanes_rejects_decimal_offset(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
-			Cache_lines: []SDRAMCacheLine{
+			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
@@ -732,7 +732,7 @@ func Test_check_sdram_cache_lines_rejects_decimal_offset(t *testing.T) {
 	}
 	macros.MakeFromMap(nil)
 	if e := cfg.check_sdram(); e == nil {
-		t.Fatal("Expected decimal cache-line offset to fail")
+		t.Fatal("Expected decimal cache-lane offset to fail")
 	}
 }
 
@@ -1126,7 +1126,7 @@ func Test_game_sdram_template_uses_32bit_bram_wrappers(t *testing.T) {
 func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
 	sample := `sdram:
   big_endian: true
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 4, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
@@ -1175,7 +1175,7 @@ func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
 
 func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiles
       cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
@@ -1226,7 +1226,7 @@ func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 
 func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiles_wr
       cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
@@ -1268,13 +1268,13 @@ func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 		}
 	}
 	if strings.Contains(out, "tiles_we") {
-		t.Fatalf("generated mem ports should not emit write ports for read-only cache lines\n%s", out)
+		t.Fatalf("generated mem ports should not emit write ports for read-only cache lanes\n%s", out)
 	}
 }
 
 func Test_mem_ports_template_uses_wide_cache_addr_ranges(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: line64
       cache: { blocks: 2, size: 1kB, data_width: 64 }
       at:    { bank: 2, offset: LINE64, length: 4MB }
@@ -1314,9 +1314,9 @@ func Test_mem_ports_template_uses_wide_cache_addr_ranges(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_rejects_sub_16b_cache_lines(t *testing.T) {
+func Test_check_sdram_rejects_sub_16b_cache_lanes(t *testing.T) {
 	sample := `sdram:
-  cache-lines:
+  cache-lanes:
     - name: tiny
       cache: { blocks: 1, size: 8B, data_width: 32 }
       at:    { bank: 3, offset: TINY, length: 4MB }
@@ -1336,10 +1336,10 @@ func Test_check_sdram_rejects_sub_16b_cache_lines(t *testing.T) {
 	}
 }
 
-func Test_check_sdram_warns_about_big_endian_non32_cache_lines(t *testing.T) {
+func Test_check_sdram_warns_about_big_endian_non32_cache_lanes(t *testing.T) {
 	sample := `sdram:
   big_endian: true
-  cache-lines:
+  cache-lanes:
     - name: line32
       cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: LINE32, length: 4MB }
@@ -1363,7 +1363,7 @@ func Test_check_sdram_warns_about_big_endian_non32_cache_lines(t *testing.T) {
 			t.Fatal(e)
 		}
 	})
-	if !strings.Contains(out, "sdram.big_endian only applies to 32-bit cache-lines") {
+	if !strings.Contains(out, "sdram.big_endian only applies to 32-bit cache-lanes") {
 		t.Fatalf("Expected big-endian warning, got %q", out)
 	}
 	if !strings.Contains(out, "line64 uses 64 bits") {
@@ -1373,10 +1373,10 @@ func Test_check_sdram_warns_about_big_endian_non32_cache_lines(t *testing.T) {
 
 func Test_byte_en_width(t *testing.T) {
 	cases := map[int]int{
-		8:  1,
-		16: 2,
-		32: 4,
-		64: 8,
+		8:   1,
+		16:  2,
+		32:  4,
+		64:  8,
 		128: 16,
 	}
 	for dw, expected := range cases {
