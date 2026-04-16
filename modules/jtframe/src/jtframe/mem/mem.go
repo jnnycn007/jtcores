@@ -686,6 +686,9 @@ func (cfg *MemConfig) parse_cache_lines(param_values map[string]string) (total_c
 	}
 	for k := range cfg.SDRAM.Cache_lines {
 		line := &cfg.SDRAM.Cache_lines[k]
+		if line.Rw && k >= 4 {
+			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s enables rw, but only the first four cache-lines may use rw", line.Name)
+		}
 		if line.Cache.Blocks == 0 {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s must define cache.blocks and it cannot be zero", line.Name)
 		}

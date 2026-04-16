@@ -82,21 +82,33 @@ module jtframe_cache_mux #(
     input      [AW0-1:AW0_0]    addr0,
     output     [DW0-1:0]        dout0,
     input                       rd0,
+    input                       wr0,
+    input      [DW0-1:0]        din0,
+    input      [DW0/8-1:0]      wdsn0,
     output                      ok0,
 
     input      [AW1-1:AW0_1]    addr1,
     output     [DW1-1:0]        dout1,
     input                       rd1,
+    input                       wr1,
+    input      [DW1-1:0]        din1,
+    input      [DW1/8-1:0]      wdsn1,
     output                      ok1,
 
     input      [AW2-1:AW0_2]    addr2,
     output     [DW2-1:0]        dout2,
     input                       rd2,
+    input                       wr2,
+    input      [DW2-1:0]        din2,
+    input      [DW2/8-1:0]      wdsn2,
     output                      ok2,
 
     input      [AW3-1:AW0_3]    addr3,
     output     [DW3-1:0]        dout3,
     input                       rd3,
+    input                       wr3,
+    input      [DW3-1:0]        din3,
+    input      [DW3/8-1:0]      wdsn3,
     output                      ok3,
 
     input      [AW4-1:AW0_4]    addr4,
@@ -122,35 +134,53 @@ module jtframe_cache_mux #(
     output reg [SDRAM_AW-1:1]   addr,
     output reg [1:0]            ba,
     output                      rd,
+    output                      wr,
     input      [15:0]           din,
+    output reg [15:0]           dout,
     input                       ack,
     input                       dst,
     input                       dok,
     input                       rdy
 );
 
-wire [SDRAM_AW-1:1] ext_addr0;
-wire [SDRAM_AW-1:1] ext_addr1;
-wire [SDRAM_AW-1:1] ext_addr2;
-wire [SDRAM_AW-1:1] ext_addr3;
-wire [SDRAM_AW-1:1] ext_addr4;
-wire [SDRAM_AW-1:1] ext_addr5;
-wire [SDRAM_AW-1:1] ext_addr6;
-wire [SDRAM_AW-1:1] ext_addr7;
+wire [SDRAM_AW-1:1] ext_addr0, ext_addr1, ext_addr2, ext_addr3;
+wire [SDRAM_AW-1:1] ext_addr4, ext_addr5, ext_addr6, ext_addr7;
+wire [15:0] ext_dout0, ext_dout1, ext_dout2, ext_dout3;
+wire [15:0] ext_dout4, ext_dout5, ext_dout6, ext_dout7;
+wire ext_rd0, ext_rd1, ext_rd2, ext_rd3, ext_rd4, ext_rd5, ext_rd6, ext_rd7;
+wire ext_wr0, ext_wr1, ext_wr2, ext_wr3, ext_wr4, ext_wr5, ext_wr6, ext_wr7;
+wire cache_ok0, cache_ok1, cache_ok2, cache_ok3;
+wire cache_ok4, cache_ok5, cache_ok6, cache_ok7;
+wire [DW0-1:0] cache_dout0;
+wire [DW1-1:0] cache_dout1;
+wire [DW2-1:0] cache_dout2;
+wire [DW3-1:0] cache_dout3;
+wire [DW4-1:0] cache_dout4;
+wire [DW5-1:0] cache_dout5;
+wire [DW6-1:0] cache_dout6;
+wire [DW7-1:0] cache_dout7;
 
-wire ext_rd0, ext_rd1, ext_rd2, ext_rd3;
-wire ext_rd4, ext_rd5, ext_rd6, ext_rd7;
-wire [7:0] ext_ack;
-wire [7:0] ext_dst;
-wire [7:0] ext_dok;
-wire [7:0] ext_rdy;
+wire req0 = rd0 | wr0;
+wire req1 = rd1 | wr1;
+wire req2 = rd2 | wr2;
+wire req3 = rd3 | wr3;
+wire req4 = rd4;
+wire req5 = rd5;
+wire req6 = rd6;
+wire req7 = rd7;
 
-wire [7:0] req = {
-    ext_rd7, ext_rd6, ext_rd5, ext_rd4,
-    ext_rd3, ext_rd2, ext_rd1, ext_rd0
+wire [7:0] ext_req = {
+    ext_rd7 | ext_wr7,
+    ext_rd6 | ext_wr6,
+    ext_rd5 | ext_wr5,
+    ext_rd4 | ext_wr4,
+    ext_rd3 | ext_wr3,
+    ext_rd2 | ext_wr2,
+    ext_rd1 | ext_wr1,
+    ext_rd0 | ext_wr0
 };
 
-assign ext_ack = {
+wire [7:0] ext_ack = {
     active && active_sel==3'd7 && ack,
     active && active_sel==3'd6 && ack,
     active && active_sel==3'd5 && ack,
@@ -161,7 +191,7 @@ assign ext_ack = {
     active && active_sel==3'd0 && ack
 };
 
-assign ext_dst = {
+wire [7:0] ext_dst = {
     active && active_sel==3'd7 && dst,
     active && active_sel==3'd6 && dst,
     active && active_sel==3'd5 && dst,
@@ -172,7 +202,7 @@ assign ext_dst = {
     active && active_sel==3'd0 && dst
 };
 
-assign ext_dok = {
+wire [7:0] ext_dok = {
     active && active_sel==3'd7 && dok,
     active && active_sel==3'd6 && dok,
     active && active_sel==3'd5 && dok,
@@ -183,7 +213,7 @@ assign ext_dok = {
     active && active_sel==3'd0 && dok
 };
 
-assign ext_rdy = {
+wire [7:0] ext_rdy = {
     active && active_sel==3'd7 && rdy,
     active && active_sel==3'd6 && rdy,
     active && active_sel==3'd5 && rdy,
@@ -196,9 +226,34 @@ assign ext_rdy = {
 
 reg        active;
 reg [2:0]  active_sel;
-reg [2:0]  last_sel;
 reg [2:0]  next_sel;
 reg        next_valid;
+reg [7:0]  ok_hold;
+reg [DW0-1:0] dout_hold0;
+reg [DW1-1:0] dout_hold1;
+reg [DW2-1:0] dout_hold2;
+reg [DW3-1:0] dout_hold3;
+reg [DW4-1:0] dout_hold4;
+reg [DW5-1:0] dout_hold5;
+reg [DW6-1:0] dout_hold6;
+reg [DW7-1:0] dout_hold7;
+
+assign dout0 = dout_hold0;
+assign dout1 = dout_hold1;
+assign dout2 = dout_hold2;
+assign dout3 = dout_hold3;
+assign dout4 = dout_hold4;
+assign dout5 = dout_hold5;
+assign dout6 = dout_hold6;
+assign dout7 = dout_hold7;
+assign ok0   = ok_hold[0];
+assign ok1   = ok_hold[1];
+assign ok2   = ok_hold[2];
+assign ok3   = ok_hold[3];
+assign ok4   = ok_hold[4];
+assign ok5   = ok_hold[5];
+assign ok6   = ok_hold[6];
+assign ok7   = ok_hold[7];
 
 assign rd = active && (
     (active_sel == 3'd0 && ext_rd0) ||
@@ -211,89 +266,91 @@ assign rd = active && (
     (active_sel == 3'd7 && ext_rd7)
 );
 
+assign wr = active && (
+    (active_sel == 3'd0 && ext_wr0) ||
+    (active_sel == 3'd1 && ext_wr1) ||
+    (active_sel == 3'd2 && ext_wr2) ||
+    (active_sel == 3'd3 && ext_wr3) ||
+    (active_sel == 3'd4 && ext_wr4) ||
+    (active_sel == 3'd5 && ext_wr5) ||
+    (active_sel == 3'd6 && ext_wr6) ||
+    (active_sel == 3'd7 && ext_wr7)
+);
+
 always @(*) begin
     next_valid = 1'b0;
     next_sel   = 3'd0;
-    case( last_sel )
+    if( ext_req[0] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd0;
+    end else if( ext_req[1] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd1;
+    end else if( ext_req[2] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd2;
+    end else if( ext_req[3] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd3;
+    end else if( ext_req[4] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd4;
+    end else if( ext_req[5] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd5;
+    end else if( ext_req[6] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd6;
+    end else if( ext_req[7] ) begin
+        next_valid = 1'b1;
+        next_sel   = 3'd7;
+    end
+end
+
+always @(*) begin
+    addr = {SDRAM_AW-1{1'b0}};
+    ba   = 2'd0;
+    dout = 16'd0;
+    case( active_sel )
         3'd0: begin
-            if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
+            addr = ext_addr0 + OFFSET0[0+:SDRAM_AW-1];
+            ba   = BA0[1:0];
+            dout = ext_dout0;
         end
         3'd1: begin
-            if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
+            addr = ext_addr1 + OFFSET1[0+:SDRAM_AW-1];
+            ba   = BA1[1:0];
+            dout = ext_dout1;
         end
         3'd2: begin
-            if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
+            addr = ext_addr2 + OFFSET2[0+:SDRAM_AW-1];
+            ba   = BA2[1:0];
+            dout = ext_dout2;
         end
         3'd3: begin
-            if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
+            addr = ext_addr3 + OFFSET3[0+:SDRAM_AW-1];
+            ba   = BA3[1:0];
+            dout = ext_dout3;
         end
         3'd4: begin
-            if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
+            addr = ext_addr4 + OFFSET4[0+:SDRAM_AW-1];
+            ba   = BA4[1:0];
+            dout = ext_dout4;
         end
         3'd5: begin
-            if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
+            addr = ext_addr5 + OFFSET5[0+:SDRAM_AW-1];
+            ba   = BA5[1:0];
+            dout = ext_dout5;
         end
         3'd6: begin
-            if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
-            else if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
+            addr = ext_addr6 + OFFSET6[0+:SDRAM_AW-1];
+            ba   = BA6[1:0];
+            dout = ext_dout6;
         end
         default: begin
-            if( req[0] ) begin next_valid = 1'b1; next_sel = 3'd0; end
-            else if( req[1] ) begin next_valid = 1'b1; next_sel = 3'd1; end
-            else if( req[2] ) begin next_valid = 1'b1; next_sel = 3'd2; end
-            else if( req[3] ) begin next_valid = 1'b1; next_sel = 3'd3; end
-            else if( req[4] ) begin next_valid = 1'b1; next_sel = 3'd4; end
-            else if( req[5] ) begin next_valid = 1'b1; next_sel = 3'd5; end
-            else if( req[6] ) begin next_valid = 1'b1; next_sel = 3'd6; end
-            else if( req[7] ) begin next_valid = 1'b1; next_sel = 3'd7; end
+            addr = ext_addr7 + OFFSET7[0+:SDRAM_AW-1];
+            ba   = BA7[1:0];
+            dout = ext_dout7;
         end
     endcase
 end
@@ -302,28 +359,65 @@ always @(posedge clk) begin
     if( rst ) begin
         active     <= 1'b0;
         active_sel <= 3'd0;
-        last_sel   <= 3'd7;
-        addr       <= {SDRAM_AW-1{1'b0}};
-        ba         <= 2'd0;
+        ok_hold    <= 8'd0;
+        dout_hold0 <= {DW0{1'b0}};
+        dout_hold1 <= {DW1{1'b0}};
+        dout_hold2 <= {DW2{1'b0}};
+        dout_hold3 <= {DW3{1'b0}};
+        dout_hold4 <= {DW4{1'b0}};
+        dout_hold5 <= {DW5{1'b0}};
+        dout_hold6 <= {DW6{1'b0}};
+        dout_hold7 <= {DW7{1'b0}};
     end else begin
+        if( !req0 ) ok_hold[0] <= 1'b0;
+        if( !req1 ) ok_hold[1] <= 1'b0;
+        if( !req2 ) ok_hold[2] <= 1'b0;
+        if( !req3 ) ok_hold[3] <= 1'b0;
+        if( !req4 ) ok_hold[4] <= 1'b0;
+        if( !req5 ) ok_hold[5] <= 1'b0;
+        if( !req6 ) ok_hold[6] <= 1'b0;
+        if( !req7 ) ok_hold[7] <= 1'b0;
+
+        if( cache_ok0 ) begin
+            dout_hold0 <= cache_dout0;
+            ok_hold[0] <= 1'b1;
+        end
+        if( cache_ok1 ) begin
+            dout_hold1 <= cache_dout1;
+            ok_hold[1] <= 1'b1;
+        end
+        if( cache_ok2 ) begin
+            dout_hold2 <= cache_dout2;
+            ok_hold[2] <= 1'b1;
+        end
+        if( cache_ok3 ) begin
+            dout_hold3 <= cache_dout3;
+            ok_hold[3] <= 1'b1;
+        end
+        if( cache_ok4 ) begin
+            dout_hold4 <= cache_dout4;
+            ok_hold[4] <= 1'b1;
+        end
+        if( cache_ok5 ) begin
+            dout_hold5 <= cache_dout5;
+            ok_hold[5] <= 1'b1;
+        end
+        if( cache_ok6 ) begin
+            dout_hold6 <= cache_dout6;
+            ok_hold[6] <= 1'b1;
+        end
+        if( cache_ok7 ) begin
+            dout_hold7 <= cache_dout7;
+            ok_hold[7] <= 1'b1;
+        end
+
         if( active ) begin
             if( rdy ) begin
-                active   <= 1'b0;
-                last_sel <= active_sel;
+                active <= 1'b0;
             end
         end else if( next_valid ) begin
             active     <= 1'b1;
             active_sel <= next_sel;
-            case( next_sel )
-                3'd0: begin addr <= ext_addr0 + OFFSET0[0+:SDRAM_AW-1]; ba <= BA0[1:0]; end
-                3'd1: begin addr <= ext_addr1 + OFFSET1[0+:SDRAM_AW-1]; ba <= BA1[1:0]; end
-                3'd2: begin addr <= ext_addr2 + OFFSET2[0+:SDRAM_AW-1]; ba <= BA2[1:0]; end
-                3'd3: begin addr <= ext_addr3 + OFFSET3[0+:SDRAM_AW-1]; ba <= BA3[1:0]; end
-                3'd4: begin addr <= ext_addr4 + OFFSET4[0+:SDRAM_AW-1]; ba <= BA4[1:0]; end
-                3'd5: begin addr <= ext_addr5 + OFFSET5[0+:SDRAM_AW-1]; ba <= BA5[1:0]; end
-                3'd6: begin addr <= ext_addr6 + OFFSET6[0+:SDRAM_AW-1]; ba <= BA6[1:0]; end
-                default: begin addr <= ext_addr7 + OFFSET7[0+:SDRAM_AW-1]; ba <= BA7[1:0]; end
-            endcase
         end
     end
 end
@@ -339,12 +433,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr0                         ),
-    .dout       ( dout0                         ),
+    .dout       ( cache_dout0                   ),
+    .din        ( din0                          ),
     .rd         ( rd0                           ),
-    .ok         ( ok0                           ),
+    .wr         ( wr0                           ),
+    .wdsn       ( wdsn0                         ),
+    .ok         ( cache_ok0                     ),
     .ext_addr   ( ext_addr0                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout0                     ),
     .ext_rd     ( ext_rd0                       ),
+    .ext_wr     ( ext_wr0                       ),
     .ext_ack    ( ext_ack[0]                    ),
     .ext_dst    ( ext_dst[0]                    ),
     .ext_dok    ( ext_dok[0]                    ),
@@ -362,12 +461,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr1                         ),
-    .dout       ( dout1                         ),
+    .dout       ( cache_dout1                   ),
+    .din        ( din1                          ),
     .rd         ( rd1                           ),
-    .ok         ( ok1                           ),
+    .wr         ( wr1                           ),
+    .wdsn       ( wdsn1                         ),
+    .ok         ( cache_ok1                     ),
     .ext_addr   ( ext_addr1                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout1                     ),
     .ext_rd     ( ext_rd1                       ),
+    .ext_wr     ( ext_wr1                       ),
     .ext_ack    ( ext_ack[1]                    ),
     .ext_dst    ( ext_dst[1]                    ),
     .ext_dok    ( ext_dok[1]                    ),
@@ -385,12 +489,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr2                         ),
-    .dout       ( dout2                         ),
+    .dout       ( cache_dout2                   ),
+    .din        ( din2                          ),
     .rd         ( rd2                           ),
-    .ok         ( ok2                           ),
+    .wr         ( wr2                           ),
+    .wdsn       ( wdsn2                         ),
+    .ok         ( cache_ok2                     ),
     .ext_addr   ( ext_addr2                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout2                     ),
     .ext_rd     ( ext_rd2                       ),
+    .ext_wr     ( ext_wr2                       ),
     .ext_ack    ( ext_ack[2]                    ),
     .ext_dst    ( ext_dst[2]                    ),
     .ext_dok    ( ext_dok[2]                    ),
@@ -408,12 +517,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr3                         ),
-    .dout       ( dout3                         ),
+    .dout       ( cache_dout3                   ),
+    .din        ( din3                          ),
     .rd         ( rd3                           ),
-    .ok         ( ok3                           ),
+    .wr         ( wr3                           ),
+    .wdsn       ( wdsn3                         ),
+    .ok         ( cache_ok3                     ),
     .ext_addr   ( ext_addr3                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout3                     ),
     .ext_rd     ( ext_rd3                       ),
+    .ext_wr     ( ext_wr3                       ),
     .ext_ack    ( ext_ack[3]                    ),
     .ext_dst    ( ext_dst[3]                    ),
     .ext_dok    ( ext_dok[3]                    ),
@@ -431,12 +545,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr4                         ),
-    .dout       ( dout4                         ),
+    .dout       ( cache_dout4                   ),
+    .din        ( {DW4{1'b0}}                   ),
     .rd         ( rd4                           ),
-    .ok         ( ok4                           ),
+    .wr         ( 1'b0                          ),
+    .wdsn       ( {(DW4/8){1'b1}}               ),
+    .ok         ( cache_ok4                     ),
     .ext_addr   ( ext_addr4                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout4                     ),
     .ext_rd     ( ext_rd4                       ),
+    .ext_wr     ( ext_wr4                       ),
     .ext_ack    ( ext_ack[4]                    ),
     .ext_dst    ( ext_dst[4]                    ),
     .ext_dok    ( ext_dok[4]                    ),
@@ -454,12 +573,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr5                         ),
-    .dout       ( dout5                         ),
+    .dout       ( cache_dout5                   ),
+    .din        ( {DW5{1'b0}}                   ),
     .rd         ( rd5                           ),
-    .ok         ( ok5                           ),
+    .wr         ( 1'b0                          ),
+    .wdsn       ( {(DW5/8){1'b1}}               ),
+    .ok         ( cache_ok5                     ),
     .ext_addr   ( ext_addr5                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout5                     ),
     .ext_rd     ( ext_rd5                       ),
+    .ext_wr     ( ext_wr5                       ),
     .ext_ack    ( ext_ack[5]                    ),
     .ext_dst    ( ext_dst[5]                    ),
     .ext_dok    ( ext_dok[5]                    ),
@@ -477,12 +601,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr6                         ),
-    .dout       ( dout6                         ),
+    .dout       ( cache_dout6                   ),
+    .din        ( {DW6{1'b0}}                   ),
     .rd         ( rd6                           ),
-    .ok         ( ok6                           ),
+    .wr         ( 1'b0                          ),
+    .wdsn       ( {(DW6/8){1'b1}}               ),
+    .ok         ( cache_ok6                     ),
     .ext_addr   ( ext_addr6                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout6                     ),
     .ext_rd     ( ext_rd6                       ),
+    .ext_wr     ( ext_wr6                       ),
     .ext_ack    ( ext_ack[6]                    ),
     .ext_dst    ( ext_dst[6]                    ),
     .ext_dok    ( ext_dok[6]                    ),
@@ -500,12 +629,17 @@ jtframe_cache #(
     .rst        ( rst                           ),
     .clk        ( clk                           ),
     .addr       ( addr7                         ),
-    .dout       ( dout7                         ),
+    .dout       ( cache_dout7                   ),
+    .din        ( {DW7{1'b0}}                   ),
     .rd         ( rd7                           ),
-    .ok         ( ok7                           ),
+    .wr         ( 1'b0                          ),
+    .wdsn       ( {(DW7/8){1'b1}}               ),
+    .ok         ( cache_ok7                     ),
     .ext_addr   ( ext_addr7                     ),
     .ext_din    ( din                           ),
+    .ext_dout   ( ext_dout7                     ),
     .ext_rd     ( ext_rd7                       ),
+    .ext_wr     ( ext_wr7                       ),
     .ext_ack    ( ext_ack[7]                    ),
     .ext_dst    ( ext_dst[7]                    ),
     .ext_dok    ( ext_dok[7]                    ),

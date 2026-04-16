@@ -164,6 +164,7 @@ always @(*) begin
             burst_rdy   = page_last || !wr;
         end
         B_WRITE: begin
+            if( !wr ) burst_cmd = CMD_STOP;
             burst_dq_oe = wr;
             burst_rdy   = page_last || !wr;
         end

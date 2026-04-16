@@ -402,6 +402,24 @@ func Test_SDRAMCacheLine_Unmarshal_RejectsStart(t *testing.T) {
 	}
 }
 
+func Test_SDRAMCacheLine_Unmarshal_RejectsWrAlias(t *testing.T) {
+	sample := `sdram:
+  cache-lines:
+    - name: tiles
+      cache: { blocks: 32, size: 1kB, data_width: 32 }
+      at:    { bank: 3, offset: CHAR, length: 8MB }
+      wr: true
+`
+	var cfg MemConfig
+	e := yaml.Unmarshal([]byte(sample), &cfg)
+	if e == nil {
+		t.Fatal("Expected cache-line wr alias to be rejected")
+	}
+	if !strings.Contains(e.Error(), "Unexpected field wr in cache line") {
+		t.Fatalf("Wrong error for cache-line wr alias. Got %v", e)
+	}
+}
+
 func Test_SDRAMBus_Simfile_Unmarshal(t *testing.T) {
 	sample := `sdram:
   banks:
@@ -559,6 +577,17 @@ func Test_check_sdram_cache_lines_rejects(t *testing.T) {
 					},
 					At: SDRAMCacheAddr{Length: "8MB"},
 				}},
+			},
+		},
+		{
+			SDRAM: SDRAMCfg{
+				Cache_lines: []SDRAMCacheLine{
+					{Name: "a", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "b", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "c", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "d", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "e", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+				},
 			},
 		},
 		{
@@ -996,6 +1025,18 @@ func get_game_sdram_template(t *testing.T) *template.Template {
 	return tpl
 }
 
+func get_mem_ports_template(t *testing.T) *template.Template {
+	ports := filepath.Join(os.Getenv("JTFRAME"), "hdl", "inc", "ports.v")
+	tpl := template.New("ports.v")
+	tpl.Funcs(funcMap).Funcs(sprig.FuncMap())
+	_, e := tpl.ParseFiles(ports)
+	if e != nil {
+		t.Error(e)
+		t.FailNow()
+	}
+	return tpl
+}
+
 func Test_game_sdram_template_uses_32bit_bram_wrappers(t *testing.T) {
 	sample := `bram:
   - name: fb
@@ -1097,6 +1138,105 @@ func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
 		if !strings.Contains(out, each) {
 			t.Fatalf("generated template is missing %q\n%s", each, out)
 		}
+	}
+}
+
+func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
+	sample := `sdram:
+  cache-lines:
+    - name: tiles
+      cache: { blocks: 1, size: 512B, data_width: 32 }
+      at:    { bank: 3, offset: TILES, length: 4MB }
+      rw: true
+    - name: palette
+      cache: { blocks: 1, size: 512B, data_width: 16 }
+      at:    { bank: 1, offset: 0x100, length: 256kB }
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Core = "test"
+	cfg.Params = []Param{{Name: "TILES", Value: "22'h100"}}
+	macros.MakeFromMap(nil)
+	if e := cfg.check_sdram(); e != nil {
+		t.Fatal(e)
+	}
+
+	tpl := get_game_sdram_template(t)
+	var verilog strings.Builder
+	if e := tpl.Execute(&verilog, cfg); e != nil {
+		t.Fatal(e)
+	}
+	out := verilog.String()
+
+	checks := []string{
+		"wire        tiles_we;",
+		"wire [31:0] tiles_din;",
+		"wire [3:0] tiles_dsn;",
+		".tiles_we   ( tiles_we   )",
+		".tiles_din  ( tiles_din  )",
+		".tiles_dsn  ( tiles_dsn  )",
+		".wr0   ( tiles_we )",
+		".din0  ( tiles_din )",
+		".wdsn0 ( tiles_dsn )",
+		".wr1   ( 1'b0 )",
+	}
+	for _, each := range checks {
+		if !strings.Contains(out, each) {
+			t.Fatalf("generated template is missing %q\n%s", each, out)
+		}
+	}
+	if strings.Contains(out, ".wr4") {
+		t.Fatalf("generated template should not expose write ports above lane 3\n%s", out)
+	}
+}
+
+func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
+	sample := `sdram:
+  cache-lines:
+    - name: tiles_wr
+      cache: { blocks: 1, size: 512B, data_width: 32 }
+      at:    { bank: 3, offset: TILES, length: 4MB }
+      rw: true
+    - name: tiles
+      cache: { blocks: 1, size: 512B, data_width: 16 }
+      at:    { bank: 1, offset: 0x100, length: 256kB }
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Core = "test"
+	cfg.Params = []Param{{Name: "TILES", Value: "22'h100"}}
+	macros.MakeFromMap(nil)
+	if e := cfg.check_sdram(); e != nil {
+		t.Fatal(e)
+	}
+
+	tpl := get_mem_ports_template(t)
+	var verilog strings.Builder
+	if e := tpl.Execute(&verilog, cfg); e != nil {
+		t.Fatal(e)
+	}
+	out := verilog.String()
+
+	checks := []string{
+		"input    [31:0] tiles_wr_data,",
+		"output          tiles_wr_cs,",
+		"output   [21:2] tiles_wr_addr,",
+		"input           tiles_wr_ok,",
+		"output          tiles_wr_we,",
+		"output   [31:0] tiles_wr_din,",
+		"output   [3:0] tiles_wr_dsn,",
+	}
+	for _, each := range checks {
+		if !strings.Contains(out, each) {
+			t.Fatalf("generated mem ports are missing %q\n%s", each, out)
+		}
+	}
+	if strings.Contains(out, "tiles_we") {
+		t.Fatalf("generated mem ports should not emit write ports for read-only cache lines\n%s", out)
 	}
 }
 

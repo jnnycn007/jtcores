@@ -70,6 +70,11 @@ wire [ 1:0] {{.Name}}_dsn;
 wire {{ cache_line_addr_range . }} {{.Name}}_addr;
 wire [{{ sub .Cache.Data_width 1 }}:0] {{.Name}}_data;
 wire        {{.Name}}_cs, {{.Name}}_ok;
+{{- if .Rw }}
+wire        {{.Name}}_we;
+wire [{{ sub .Cache.Data_width 1 }}:0] {{.Name}}_din;
+wire [{{ sub (byte_en_width .Cache.Data_width) 1 }}:0] {{.Name}}_dsn;
+{{- end}}
 {{- end}}
 wire        prom_we, header;
 wire [SDRAMW-2:0] raw_addr, post_addr;
@@ -194,6 +199,11 @@ jt{{if .Game}}{{.Game}}{{else}}{{.Core}}{{end}}_game u_game(
     .{{.Name}}_cs   ( {{.Name}}_cs   ),
     .{{.Name}}_ok   ( {{.Name}}_ok   ),
     .{{.Name}}_data ( {{.Name}}_data ),
+    {{- if .Rw }}
+    .{{.Name}}_we   ( {{.Name}}_we   ),
+    .{{.Name}}_din  ( {{.Name}}_din  ),
+    .{{.Name}}_dsn  ( {{.Name}}_dsn  ),
+    {{- end}}
     {{- end}}
     {{- else }}
     {{- range .SDRAM.Banks}}
@@ -361,6 +371,11 @@ jtframe_cache_mux #(
     .addr{{$index}} ( {{ $line.Name }}_addr ),
     .dout{{$index}} ( {{ $line.Name }}_data ),
     .rd{{$index}}   ( {{ $line.Name }}_cs   ),
+    {{- if lt $index 4 }}
+    .wr{{$index}}   ( {{ if $line.Rw }}{{ $line.Name }}_we{{ else }}1'b0{{ end }} ),
+    .din{{$index}}  ( {{ if $line.Rw }}{{ $line.Name }}_din{{ else }}{{ printf "%d'd0" $line.Cache.Data_width }}{{ end }} ),
+    .wdsn{{$index}} ( {{ if $line.Rw }}{{ $line.Name }}_dsn{{ else }}{{ printf "%d'd0" (byte_en_width $line.Cache.Data_width) }}{{ end }} ),
+    {{- end}}
     .ok{{$index}}   ( {{ $line.Name }}_ok   ),
 {{- end}}
 {{- range $index, $_ := until 8}}
@@ -368,20 +383,25 @@ jtframe_cache_mux #(
     .addr{{$index}} ( 0    ),
     .dout{{$index}} (      ),
     .rd{{$index}}   ( 1'b0 ),
+    {{- if lt $index 4 }}
+    .wr{{$index}}   ( 1'b0 ),
+    .din{{$index}}  ( 0    ),
+    .wdsn{{$index}} ( 0    ),
+    {{- end}}
     .ok{{$index}}   (      ),
 {{- end}}
 {{- end}}
     .addr      ( burst_addr ),
     .ba        ( burst_ba   ),
     .rd        ( burst_rd   ),
+    .wr        ( burst_wr   ),
     .din       ( data_read  ),
+    .dout      ( burst_din  ),
     .ack       ( burst_ack   ),
     .dst       ( burst_dst   ),
     .dok       ( burst_dok   ),
     .rdy       ( burst_rdy   )
 );
-assign burst_wr  = 1'b0;
-assign burst_din = 16'd0;
 {{- else }}
 {{ range $bank, $each:=.SDRAM.Banks }}
 {{- if gt (len .Buses) 0 }}
