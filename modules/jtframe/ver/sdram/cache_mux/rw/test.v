@@ -7,18 +7,18 @@ module test;
 localparam integer PERIOD      = 10;
 localparam integer HF          = 1;
 localparam integer SDRAM_AW    = 23;
-localparam integer WORDS       = 4096;
+localparam integer WORDS       = 8192;
 localparam integer LOCAL_WORDS = 128;
-localparam integer FLUSH_ADDR  = 128;
+localparam integer FLUSH_ADDR  = 512;
 localparam integer ITERATIONS  = 96;
 localparam integer OFFSET0_W   =    0;
-localparam integer OFFSET1_W   =  256;
-localparam integer OFFSET2_W   =  512;
-localparam integer OFFSET3_W   =  768;
-localparam integer OFFSET4_W   = 1024;
-localparam integer OFFSET5_W   = 1280;
-localparam integer OFFSET6_W   = 1536;
-localparam integer OFFSET7_W   = 1792;
+localparam integer OFFSET1_W   = 1024;
+localparam integer OFFSET2_W   = 2048;
+localparam integer OFFSET3_W   = 3072;
+localparam integer OFFSET4_W   = 4096;
+localparam integer OFFSET5_W   = 5120;
+localparam integer OFFSET6_W   = 6144;
+localparam integer OFFSET7_W   = 7168;
 
 reg                 rst;
 reg                 clk;
@@ -72,42 +72,42 @@ jtframe_cache_mux #(
     .ENDIAN   ( 0        ),
     .AW0      ( 23       ),
     .BLOCKS0  ( 1        ),
-    .BLKSIZE0 ( 32       ),
+    .BLKSIZE0 ( 1024     ),
     .DW0      ( 16       ),
     .OFFSET0  ( OFFSET0_W ),
     .AW1      ( 23       ),
     .BLOCKS1  ( 1        ),
-    .BLKSIZE1 ( 64       ),
+    .BLKSIZE1 ( 1024     ),
     .DW1      ( 16       ),
     .OFFSET1  ( OFFSET1_W ),
     .AW2      ( 23       ),
     .BLOCKS2  ( 1        ),
-    .BLKSIZE2 ( 128      ),
+    .BLKSIZE2 ( 1024     ),
     .DW2      ( 16       ),
     .OFFSET2  ( OFFSET2_W ),
     .AW3      ( 23       ),
     .BLOCKS3  ( 1        ),
-    .BLKSIZE3 ( 32       ),
+    .BLKSIZE3 ( 1024     ),
     .DW3      ( 16       ),
     .OFFSET3  ( OFFSET3_W ),
     .AW4      ( 23       ),
     .BLOCKS4  ( 1        ),
-    .BLKSIZE4 ( 64       ),
+    .BLKSIZE4 ( 1024     ),
     .DW4      ( 16       ),
     .OFFSET4  ( OFFSET4_W ),
     .AW5      ( 23       ),
     .BLOCKS5  ( 1        ),
-    .BLKSIZE5 ( 128      ),
+    .BLKSIZE5 ( 1024     ),
     .DW5      ( 16       ),
     .OFFSET5  ( OFFSET5_W ),
     .AW6      ( 23       ),
     .BLOCKS6  ( 1        ),
-    .BLKSIZE6 ( 32       ),
+    .BLKSIZE6 ( 1024     ),
     .DW6      ( 16       ),
     .OFFSET6  ( OFFSET6_W ),
     .AW7      ( 23       ),
     .BLOCKS7  ( 1        ),
-    .BLKSIZE7 ( 64       ),
+    .BLKSIZE7 ( 1024     ),
     .DW7      ( 16       ),
     .OFFSET7  ( OFFSET7_W )
 ) u_mux (

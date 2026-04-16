@@ -3,7 +3,7 @@
 module cache_read_env #(parameter
     DW       = 16,
     ENDIAN   = 0,
-    BLKSIZE  = 64,
+    BLKSIZE  = 1024,
     BLOCKS   = 2,
     CACHE_AW = 23,
     WORDS    = 1024
@@ -13,8 +13,8 @@ module cache_read_env #(parameter
 
 localparam integer PERIOD     = 10;
 localparam integer HF         = 1;
-localparam integer AW0        = DW==32 ? 2 : DW==16 ? 1 : 0;
-localparam integer MW         = DW==32 ? 4 : DW==16 ? 2 : 1;
+localparam integer AW0        = DW==128 ? 4 : DW==64 ? 3 : DW==32 ? 2 : DW==16 ? 1 : 0;
+localparam integer MW         = DW >> 3;
 localparam integer LINE_UNITS = BLKSIZE / (DW>>3);
 
 reg                     rst;
@@ -278,7 +278,7 @@ task run;
 
         repeat (20) @(posedge clk);
 
-        for( idx=0; idx<256; idx=idx+1 ) begin
+        for( idx=0; idx<(2*BLKSIZE); idx=idx+1 ) begin
             preload_byte(idx, pattern(idx));
         end
 

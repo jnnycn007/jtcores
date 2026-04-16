@@ -3,18 +3,18 @@
 module cache_rw_env #(parameter
     DW       = 16,
     ENDIAN   = 0,
-    BLKSIZE  = 64,
+    BLKSIZE  = 1024,
     BLOCKS   = 1,
     CACHE_AW = 23,
-    WORDS    = 1024
+    WORDS    = 2048
 );
 
 `include "test_tasks.vh"
 
 localparam integer PERIOD     = 10;
 localparam integer HF         = 1;
-localparam integer AW0        = DW==32 ? 2 : DW==16 ? 1 : 0;
-localparam integer MW         = DW==32 ? 4 : DW==16 ? 2 : 1;
+localparam integer AW0        = DW==128 ? 4 : DW==64 ? 3 : DW==32 ? 2 : DW==16 ? 1 : 0;
+localparam integer MW         = DW >> 3;
 localparam integer LINE_UNITS = BLKSIZE / (DW>>3);
 
 reg                     rst;

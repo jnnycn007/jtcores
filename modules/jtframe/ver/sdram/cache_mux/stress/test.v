@@ -7,29 +7,33 @@ module test;
 localparam integer PERIOD        = 10;
 localparam integer HF            = 1;
 localparam integer SDRAM_AW      = 23;
-localparam integer WORDS         = 4096;
-localparam integer LOCAL_WORDS   = 128;
+localparam integer WORDS         = 8192;
+localparam integer LOCAL_WORDS   = 64;
 localparam integer STRESS_CYCLES = 2_000_000;
 localparam integer OFFSET0_W     =    0;
-localparam integer OFFSET1_W     =  256;
-localparam integer OFFSET2_W     =  512;
-localparam integer OFFSET3_W     =  768;
-localparam integer OFFSET4_W     = 1024;
-localparam integer OFFSET5_W     = 1280;
-localparam integer OFFSET6_W     = 1536;
-localparam integer OFFSET7_W     = 1792;
+localparam integer OFFSET1_W     = 1024;
+localparam integer OFFSET2_W     = 2048;
+localparam integer OFFSET3_W     = 3072;
+localparam integer OFFSET4_W     = 4096;
+localparam integer OFFSET5_W     = 5120;
+localparam integer OFFSET6_W     = 6144;
+localparam integer OFFSET7_W     = 7168;
 
 reg                 rst;
 reg                 clk;
 reg                 clk_sdram;
 
-reg  [22:1]         addr0, addr1, addr2, addr3, addr4, addr5, addr6, addr7;
+reg  [22:1]         addr0, addr1, addr2, addr3, addr4, addr5;
+reg  [22:3]         addr6;
+reg  [22:4]         addr7;
 reg                 rd0, rd1, rd2, rd3, rd4, rd5, rd6, rd7;
 reg                 wr0, wr1, wr2, wr3;
 reg  [15:0]         din0, din1, din2, din3;
 reg  [ 1:0]         wdsn0, wdsn1, wdsn2, wdsn3;
 
-wire [15:0]         dout0, dout1, dout2, dout3, dout4, dout5, dout6, dout7;
+wire [15:0]         dout0, dout1, dout2, dout3, dout4, dout5;
+wire [63:0]         dout6;
+wire [127:0]        dout7;
 wire                ok0, ok1, ok2, ok3, ok4, ok5, ok6, ok7;
 
 wire [SDRAM_AW-1:1] sdram_addr;
@@ -56,7 +60,7 @@ wire                sdram_ncs;
 wire                sdram_cke;
 
 reg  [15:0]         exp_mem [0:WORDS-1];
-reg  [15:0]         lane_exp [0:7];
+reg  [127:0]        lane_exp [0:7];
 reg                 lane_pending [0:7];
 reg                 lane_got_ok [0:7];
 integer             lane_addr [0:7];
@@ -78,43 +82,43 @@ jtframe_cache_mux #(
     .ENDIAN   ( 0        ),
     .AW0      ( 23       ),
     .BLOCKS0  ( 1        ),
-    .BLKSIZE0 ( 32       ),
+    .BLKSIZE0 ( 1024     ),
     .DW0      ( 16       ),
     .OFFSET0  ( OFFSET0_W ),
     .AW1      ( 23       ),
     .BLOCKS1  ( 1        ),
-    .BLKSIZE1 ( 64       ),
+    .BLKSIZE1 ( 1024     ),
     .DW1      ( 16       ),
     .OFFSET1  ( OFFSET1_W ),
     .AW2      ( 23       ),
     .BLOCKS2  ( 1        ),
-    .BLKSIZE2 ( 128      ),
+    .BLKSIZE2 ( 1024     ),
     .DW2      ( 16       ),
     .OFFSET2  ( OFFSET2_W ),
     .AW3      ( 23       ),
     .BLOCKS3  ( 1        ),
-    .BLKSIZE3 ( 32       ),
+    .BLKSIZE3 ( 1024     ),
     .DW3      ( 16       ),
     .OFFSET3  ( OFFSET3_W ),
     .AW4      ( 23       ),
     .BLOCKS4  ( 1        ),
-    .BLKSIZE4 ( 64       ),
+    .BLKSIZE4 ( 1024     ),
     .DW4      ( 16       ),
     .OFFSET4  ( OFFSET4_W ),
     .AW5      ( 23       ),
     .BLOCKS5  ( 1        ),
-    .BLKSIZE5 ( 128      ),
+    .BLKSIZE5 ( 1024     ),
     .DW5      ( 16       ),
     .OFFSET5  ( OFFSET5_W ),
     .AW6      ( 23       ),
     .BLOCKS6  ( 1        ),
-    .BLKSIZE6 ( 32       ),
-    .DW6      ( 16       ),
+    .BLKSIZE6 ( 1024     ),
+    .DW6      ( 64       ),
     .OFFSET6  ( OFFSET6_W ),
     .AW7      ( 23       ),
     .BLOCKS7  ( 1        ),
-    .BLKSIZE7 ( 64       ),
-    .DW7      ( 16       ),
+    .BLKSIZE7 ( 1024     ),
+    .DW7      ( 128      ),
     .OFFSET7  ( OFFSET7_W )
 ) u_mux (
     .rst    ( rst            ),
@@ -260,9 +264,25 @@ function automatic [15:0] pattern(input integer phys_addr);
     end
 endfunction
 
-function automatic [15:0] expected_word(input integer n, input integer local_addr);
+function automatic integer lane_halfwords(input integer n);
     begin
-        expected_word = exp_mem[lane_offset(n) + local_addr];
+        case( n )
+            6: lane_halfwords = 4;
+            7: lane_halfwords = 8;
+            default: lane_halfwords = 1;
+        endcase
+    end
+endfunction
+
+function automatic [127:0] expected_word(input integer n, input integer local_addr);
+    integer base;
+    integer ofs;
+    begin
+        expected_word = 128'd0;
+        base = lane_offset(n) + local_addr*lane_halfwords(n);
+        for( ofs=0; ofs<lane_halfwords(n); ofs=ofs+1 ) begin
+            expected_word[(ofs*16) +: 16] = exp_mem[base + ofs];
+        end
     end
 endfunction
 
@@ -281,16 +301,16 @@ function automatic lane_ok(input integer n);
     end
 endfunction
 
-function automatic [15:0] lane_dout(input integer n);
+function automatic [127:0] lane_dout(input integer n);
     begin
         case( n )
-            0: lane_dout = dout0;
-            1: lane_dout = dout1;
-            2: lane_dout = dout2;
-            3: lane_dout = dout3;
-            4: lane_dout = dout4;
-            5: lane_dout = dout5;
-            6: lane_dout = dout6;
+            0: lane_dout = { 112'd0, dout0 };
+            1: lane_dout = { 112'd0, dout1 };
+            2: lane_dout = { 112'd0, dout2 };
+            3: lane_dout = { 112'd0, dout3 };
+            4: lane_dout = { 112'd0, dout4 };
+            5: lane_dout = { 112'd0, dout5 };
+            6: lane_dout = {  64'd0, dout6 };
             default: lane_dout = dout7;
         endcase
     end
@@ -379,12 +399,12 @@ initial begin
         lane_addr[idx]    = 0;
         lane_hold[idx]    = 0;
         lane_served[idx]  = 0;
-        lane_exp[idx]     = 16'd0;
+        lane_exp[idx]     = 128'd0;
     end
 
     rst   = 1'b1;
     addr0 = 22'd0; addr1 = 22'd0; addr2 = 22'd0; addr3 = 22'd0;
-    addr4 = 22'd0; addr5 = 22'd0; addr6 = 22'd0; addr7 = 22'd0;
+    addr4 = 22'd0; addr5 = 22'd0; addr6 = 'd0;   addr7 = 'd0;
     rd0   = 1'b0;  rd1   = 1'b0;  rd2   = 1'b0;  rd3   = 1'b0;
     rd4   = 1'b0;  rd5   = 1'b0;  rd6   = 1'b0;  rd7   = 1'b0;
     wr0   = 1'b0;  wr1   = 1'b0;  wr2   = 1'b0;  wr3   = 1'b0;
@@ -403,7 +423,7 @@ initial begin
         for( lane=0; lane<8; lane=lane+1 ) begin
             if( lane_pending[lane] && lane_ok(lane) && !lane_got_ok[lane] ) begin
                 if( lane_dout(lane) !== lane_exp[lane] ) begin
-                    $display("Lane %0d mismatch at local addr %0d: got %04x expected %04x",
+                    $display("Lane %0d mismatch at local addr %0d: got %h expected %h",
                         lane, lane_addr[lane], lane_dout(lane), lane_exp[lane]);
                     fail();
                 end
@@ -447,7 +467,7 @@ initial begin
             for( lane=0; lane<8; lane=lane+1 ) begin
                 if( lane_pending[lane] && lane_ok(lane) && !lane_got_ok[lane] ) begin
                     if( lane_dout(lane) !== lane_exp[lane] ) begin
-                        $display("Lane %0d mismatch while draining: got %04x expected %04x",
+                        $display("Lane %0d mismatch while draining: got %h expected %h",
                             lane, lane_dout(lane), lane_exp[lane]);
                         fail();
                     end

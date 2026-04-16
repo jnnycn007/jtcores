@@ -156,8 +156,25 @@ func cache_line_aw(line SDRAMCacheLine) int {
 	return bits.Len(uint(line.At.Length_bytes)) - 1
 }
 
+func cache_data_aw0(dw int) int {
+	switch dw {
+	case 8:
+		return 0
+	case 16:
+		return 1
+	case 32:
+		return 2
+	case 64:
+		return 3
+	case 128:
+		return 4
+	default:
+		return 0
+	}
+}
+
 func cache_line_addr_range(line SDRAMCacheLine) string {
-	aw0 := line.Cache.Data_width >> 4
+	aw0 := cache_data_aw0(line.Cache.Data_width)
 	return fmt.Sprintf("[%2d:%d]", cache_line_aw(line)-1, aw0)
 }
 
@@ -693,12 +710,16 @@ func (cfg *MemConfig) parse_cache_lines(param_values map[string]string) (total_c
 			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s must define cache.blocks and it cannot be zero", line.Name)
 		}
 		switch line.Cache.Data_width {
-		case 8, 16, 32:
+		case 8, 16, 32, 64, 128:
 		default:
 			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s uses unsupported data_width %d", line.Name, line.Cache.Data_width)
 		}
 		if line.Sim_big_endian && line.Cache.Data_width == 8 {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s cannot use sim_big_endian with 8-bit data width", line.Name)
+		}
+		if Verbose && cfg.SDRAM.Big_endian && line.Cache.Data_width != 32 {
+			fmt.Printf("WARNING: sdram.big_endian only applies to 32-bit cache-lines; %s uses %d bits and will force little-endian packing\n",
+				line.Name, line.Cache.Data_width)
 		}
 		size_bytes, e := parse_memory_size(line.Cache.Size)
 		if e != nil {
@@ -707,6 +728,9 @@ func (cfg *MemConfig) parse_cache_lines(param_values map[string]string) (total_c
 		if size_bytes&(size_bytes-1) != 0 {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-line %s uses a cache size of %d bytes, which is not an exact power of two", line.Name, size_bytes)
 		}
+        if size_bytes < 16 {
+            return 0, 0, fmt.Errorf("jtframe mem: cache-line %s uses a cache size of %d bytes, which must be at least 16", line.Name, size_bytes)
+        }
 		line.Cache.Size_bytes = size_bytes
 		if size_bytes > max_cache_size {
 			max_cache_size = size_bytes

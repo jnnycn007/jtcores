@@ -23,6 +23,7 @@ Rules:
 - On writes, `ok` means the cache accepted the write and updated its cached copy.
 - `din` and `wdsn` must remain stable from the `wr` edge until `ok`.
 - `wdsn` is active low. For `DW=16` and `DW=32`, the MSB selects the upper byte.
+- supported data widths are `8`, `16`, `32`, `64`, and `128`
 
 ## Cache Behavior
 
@@ -48,6 +49,21 @@ For `DW=32`, the cache assembles two SDRAM words:
 - `ENDIAN=0`: `{word1, word0}`
 
 The same ordering is used when splitting 32-bit writes into SDRAM words.
+
+For `DW=64` and `DW=128`, the cache always uses little-endian byte packing and
+`ENDIAN=1` is invalid.
+
+## Parameter Checks
+
+`jtframe_cache` stops simulation if:
+
+- `ENDIAN=1` and `DW!=32`
+- `BLOCKS` is not a power of two
+- `BLKSIZE < 16`
+
+When `SIMULATION` is defined, the cache also keeps a running `real`
+`ext_total_read_kb` counter. It increments by `BLKSIZE/1024` each time a fill
+request is accepted on the external SDRAM read interface.
 
 ## External Burst Interface
 
@@ -88,3 +104,5 @@ Required direct regression folders are under:
 - `modules/jtframe/ver/sdram/cache/read`
 - `modules/jtframe/ver/sdram/cache/rw`
 - `modules/jtframe/ver/sdram/cache/big_endian`
+- `modules/jtframe/ver/sdram/cache/stress`
+- `modules/jtframe/ver/sdram/cache/stress64-128`

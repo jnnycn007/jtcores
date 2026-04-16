@@ -19,6 +19,7 @@ package mem
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -464,7 +465,7 @@ func Test_check_sdram_cache_lines(t *testing.T) {
 					Name: "pal",
 					Cache: SDRAMCacheCfg{
 						Blocks:     8,
-						Size:       "512B",
+						Size:       "1kB",
 						Data_width: 16,
 					},
 					At: SDRAMCacheAddr{
@@ -496,7 +497,7 @@ func Test_check_sdram_cache_lines_accepts_exact_bank_end(t *testing.T) {
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
-					Size:       "512B",
+					Size:       "1kB",
 					Data_width: 32,
 				},
 				At: SDRAMCacheAddr{
@@ -506,7 +507,7 @@ func Test_check_sdram_cache_lines_accepts_exact_bank_end(t *testing.T) {
 			}},
 		},
 	}
-	macros.MakeFromMap(nil)
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
 	if e := cfg.check_sdram(); e != nil {
 		t.Fatal(e)
 	}
@@ -519,7 +520,7 @@ func Test_check_sdram_cache_lines_rejects_bank_overflow(t *testing.T) {
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
-					Size:       "512B",
+					Size:       "1kB",
 					Data_width: 32,
 				},
 				At: SDRAMCacheAddr{
@@ -542,7 +543,7 @@ func Test_check_sdram_cache_lines_accepts_large_bank_overflow_case(t *testing.T)
 				Name: "tiles",
 				Cache: SDRAMCacheCfg{
 					Blocks:     1,
-					Size:       "512B",
+					Size:       "1kB",
 					Data_width: 32,
 				},
 				At: SDRAMCacheAddr{
@@ -691,11 +692,11 @@ func Test_check_sdram_cache_lines_accepts_hex_offset(t *testing.T) {
 			Cache_lines: []SDRAMCacheLine{
 				{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "512B",
-						Data_width: 16,
-					},
+				Cache: SDRAMCacheCfg{
+					Blocks:     1,
+					Size:       "1kB",
+					Data_width: 16,
+				},
 					At: SDRAMCacheAddr{
 						Offset: "0x100",
 						Length: "256kB",
@@ -704,7 +705,7 @@ func Test_check_sdram_cache_lines_accepts_hex_offset(t *testing.T) {
 			},
 		},
 	}
-	macros.MakeFromMap(nil)
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
 	if e := cfg.check_sdram(); e != nil {
 		t.Fatal(e)
 	}
@@ -718,7 +719,7 @@ func Test_check_sdram_cache_lines_rejects_decimal_offset(t *testing.T) {
 					Name: "tiles",
 					Cache: SDRAMCacheCfg{
 						Blocks:     1,
-						Size:       "512B",
+						Size:       "1kB",
 						Data_width: 16,
 					},
 					At: SDRAMCacheAddr{
@@ -1037,6 +1038,25 @@ func get_mem_ports_template(t *testing.T) *template.Template {
 	return tpl
 }
 
+func capture_stdout(t *testing.T, f func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, e := os.Pipe()
+	if e != nil {
+		t.Fatal(e)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	f()
+	_ = w.Close()
+	out, e := io.ReadAll(r)
+	if e != nil {
+		t.Fatal(e)
+	}
+	_ = r.Close()
+	return string(out)
+}
+
 func Test_game_sdram_template_uses_32bit_bram_wrappers(t *testing.T) {
 	sample := `bram:
   - name: fb
@@ -1108,16 +1128,22 @@ func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
   big_endian: true
   cache-lines:
     - name: tiles
-      cache: { blocks: 4, size: 512B, data_width: 32 }
+      cache: { blocks: 4, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
+    - name: chars
+      cache: { blocks: 2, size: 1kB, data_width: 64 }
+      at:    { bank: 2, offset: CHARS, length: 2MB }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
 		t.Fatal(e)
 	}
 	cfg.Core = "test"
-	cfg.Params = []Param{{Name: "TILES", Value: "22'h100"}}
-	macros.MakeFromMap(nil)
+	cfg.Params = []Param{
+		{Name: "TILES", Value: "22'h100"},
+		{Name: "CHARS", Value: "22'h400"},
+	}
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
 	if e := cfg.check_sdram(); e != nil {
 		t.Fatal(e)
 	}
@@ -1131,13 +1157,19 @@ func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
 
 	checks := []string{
 		"jtframe_cache_mux #(",
-		".ENDIAN   ( 1 )",
+		".ENDIAN   ( 0 )",
+		".ENDIAN0 ( 1 )",
+		".ENDIAN1 ( 0 )",
 		".DW0      ( 32 )",
+		".DW1      ( 64 )",
 	}
 	for _, each := range checks {
 		if !strings.Contains(out, each) {
 			t.Fatalf("generated template is missing %q\n%s", each, out)
 		}
+	}
+	if strings.Contains(out, ".ENDIAN   ( 1 )") {
+		t.Fatalf("generated template should not broadcast big-endian to every mux lane\n%s", out)
 	}
 }
 
@@ -1145,11 +1177,11 @@ func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
   cache-lines:
     - name: tiles
-      cache: { blocks: 1, size: 512B, data_width: 32 }
+      cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
       rw: true
     - name: palette
-      cache: { blocks: 1, size: 512B, data_width: 16 }
+      cache: { blocks: 1, size: 1kB, data_width: 16 }
       at:    { bank: 1, offset: 0x100, length: 256kB }
 `
 	var cfg MemConfig
@@ -1158,7 +1190,7 @@ func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 	}
 	cfg.Core = "test"
 	cfg.Params = []Param{{Name: "TILES", Value: "22'h100"}}
-	macros.MakeFromMap(nil)
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
 	if e := cfg.check_sdram(); e != nil {
 		t.Fatal(e)
 	}
@@ -1196,11 +1228,11 @@ func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
   cache-lines:
     - name: tiles_wr
-      cache: { blocks: 1, size: 512B, data_width: 32 }
+      cache: { blocks: 1, size: 1kB, data_width: 32 }
       at:    { bank: 3, offset: TILES, length: 4MB }
       rw: true
     - name: tiles
-      cache: { blocks: 1, size: 512B, data_width: 16 }
+      cache: { blocks: 1, size: 1kB, data_width: 16 }
       at:    { bank: 1, offset: 0x100, length: 256kB }
 `
 	var cfg MemConfig
@@ -1209,7 +1241,7 @@ func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	}
 	cfg.Core = "test"
 	cfg.Params = []Param{{Name: "TILES", Value: "22'h100"}}
-	macros.MakeFromMap(nil)
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
 	if e := cfg.check_sdram(); e != nil {
 		t.Fatal(e)
 	}
@@ -1240,11 +1272,112 @@ func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	}
 }
 
+func Test_mem_ports_template_uses_wide_cache_addr_ranges(t *testing.T) {
+	sample := `sdram:
+  cache-lines:
+    - name: line64
+      cache: { blocks: 2, size: 1kB, data_width: 64 }
+      at:    { bank: 2, offset: LINE64, length: 4MB }
+    - name: line128
+      cache: { blocks: 1, size: 1kB, data_width: 128 }
+      at:    { bank: 3, offset: LINE128, length: 4MB }
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Core = "test"
+	cfg.Params = []Param{
+		{Name: "LINE64", Value: "22'h200"},
+		{Name: "LINE128", Value: "22'h400"},
+	}
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
+	if e := cfg.check_sdram(); e != nil {
+		t.Fatal(e)
+	}
+
+	tpl := get_mem_ports_template(t)
+	var verilog strings.Builder
+	if e := tpl.Execute(&verilog, cfg); e != nil {
+		t.Fatal(e)
+	}
+	out := verilog.String()
+
+	checks := []string{
+		"output   [21:3] line64_addr,",
+		"output   [21:4] line128_addr,",
+	}
+	for _, each := range checks {
+		if !strings.Contains(out, each) {
+			t.Fatalf("generated mem ports are missing %q\n%s", each, out)
+		}
+	}
+}
+
+func Test_check_sdram_rejects_sub_16b_cache_lines(t *testing.T) {
+	sample := `sdram:
+  cache-lines:
+    - name: tiny
+      cache: { blocks: 1, size: 8B, data_width: 32 }
+      at:    { bank: 3, offset: TINY, length: 4MB }
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Params = []Param{{Name: "TINY", Value: "22'h80"}}
+	macros.MakeFromMap(nil)
+	e := cfg.check_sdram()
+	if e == nil {
+		t.Fatal("Expected sub-16B cache line to fail")
+	}
+	if !strings.Contains(e.Error(), "must be at least 16") {
+		t.Fatalf("Wrong error for sub-16B cache line. Got %v", e)
+	}
+}
+
+func Test_check_sdram_warns_about_big_endian_non32_cache_lines(t *testing.T) {
+	sample := `sdram:
+  big_endian: true
+  cache-lines:
+    - name: line32
+      cache: { blocks: 1, size: 1kB, data_width: 32 }
+      at:    { bank: 3, offset: LINE32, length: 4MB }
+    - name: line64
+      cache: { blocks: 1, size: 1kB, data_width: 64 }
+      at:    { bank: 2, offset: LINE64, length: 4MB }
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Params = []Param{
+		{Name: "LINE32", Value: "22'h100"},
+		{Name: "LINE64", Value: "22'h200"},
+	}
+	macros.MakeFromMap(map[string]string{"JTFRAME_SDRAM_LARGE": ""})
+	Verbose = true
+	defer func() { Verbose = false }()
+	out := capture_stdout(t, func() {
+		if e := cfg.check_sdram(); e != nil {
+			t.Fatal(e)
+		}
+	})
+	if !strings.Contains(out, "sdram.big_endian only applies to 32-bit cache-lines") {
+		t.Fatalf("Expected big-endian warning, got %q", out)
+	}
+	if !strings.Contains(out, "line64 uses 64 bits") {
+		t.Fatalf("Expected wide-line warning detail, got %q", out)
+	}
+}
+
 func Test_byte_en_width(t *testing.T) {
 	cases := map[int]int{
 		8:  1,
 		16: 2,
 		32: 4,
+		64: 8,
+		128: 16,
 	}
 	for dw, expected := range cases {
 		t.Run(strconv.Itoa(dw), func(t *testing.T) {

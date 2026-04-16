@@ -88,7 +88,7 @@
 {{- range $k,$v := .SDRAM.Cache_lines}}
     input    {{ data_range $v }} {{$v.Name}}_data,
     output          {{$v.Name}}_cs,
-    output   {{ addr_range $v }} {{$v.Name}}_addr,
+    output   {{ cache_line_addr_range $v }} {{$v.Name}}_addr,
     input           {{$v.Name}}_ok{{ if $v.Rw }},
     output          {{$v.Name}}_we,
     output   {{ data_range $v }} {{$v.Name}}_din,

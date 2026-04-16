@@ -7,7 +7,7 @@ module test;
 localparam integer PERIOD     = 10;
 localparam integer HF         = 1;
 localparam integer CACHE_AW   = 23;
-localparam integer BLKSIZE    = 64;
+localparam integer BLKSIZE    = 1024;
 localparam integer LINE_UNITS = BLKSIZE / 4;
 localparam integer WORDS      = 1024;
 

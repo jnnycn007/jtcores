@@ -23,8 +23,8 @@ module jtframe_cache #(parameter
     DW      =    8,
     ENDIAN  =    0,
     EW      =   24,
-    AW0     = DW==32 ? 2 : DW==16 ? 1 : 0,
-    MW      = DW==32 ? 4 : DW==16 ? 2 : 1
+    AW0     = DW==128 ? 4 : DW==64 ? 3 : DW==32 ? 2 : DW==16 ? 1 : 0,
+    MW      = DW >> 3
 )(
     input                   rst,
     input                   clk,
@@ -58,6 +58,16 @@ localparam integer WORDS     = BLKSIZE >> 1;
 localparam integer WW        = WORDS < 2 ? 1 : $clog2(WORDS);
 localparam integer BLKBYTEW  = BLKSIZE < 2 ? 1 : $clog2(BLKSIZE);
 localparam integer RAM_BYTEW = BW + BLKBYTEW;
+localparam integer HALF_PER_WORD = DW < 16 ? 1 : DW >> 4;
+localparam integer HALF_SHIFT    = HALF_PER_WORD < 2 ? 0 : $clog2(HALF_PER_WORD);
+localparam integer STREAM_AW0    = DW == 8 ? 1 : AW0;
+localparam integer RAM_MASKW     = DW == 128 ? 16 :
+                                   DW ==  64 ?  8 :
+                                   DW ==  32 ?  4 : 2;
+localparam integer RAM32_AW      = BW + OFFW + 2;
+localparam integer RAM32_ADDRW   = RAM32_AW - 2;
+localparam integer RAM16_AW      = RAM_BYTEW - 1;
+localparam integer RAM32_ENDIAN  = DW == 32 ? ENDIAN : 0;
 
 localparam [WW-1:0] LAST_WORD = WW'(WORDS-1);
 
@@ -97,7 +107,7 @@ reg [MW-1:0]     req_wdsn_l;
 reg [BW-1:0]     blk_l, last_blk;
 reg [TAGW-1:0]   victim_tag_l;
 reg [WW-1:0]     stream_word;
-reg [31:0]       wb_q;
+reg [127:0]      wb_q;
 
 reg              hit_now;
 reg [BW-1:0]     hit_blk_now;
@@ -106,10 +116,13 @@ reg              victim_invalid_now;
 reg              victim_dirty_now;
 
 reg              req_load_addr, stream_load_addr;
-reg [3:0]        req_we, stream_we;
-reg [31:0]       req_wdata, stream_wdata;
+reg [15:0]       req_we, stream_we;
+reg [127:0]      req_wdata, stream_wdata;
 reg [RAM_BYTEW-1:0] req_addr_n, stream_addr_n;
 reg [RAM_BYTEW-1:0] req_ram_addr_l, stream_ram_addr_l;
+`ifdef SIMULATION
+real             ext_total_read_kb;
+`endif
 
 wire            rd_rise = rd & ~rd_l;
 wire            wr_rise = wr & ~wr_l;
@@ -126,15 +139,22 @@ wire [RAM_BYTEW-1:0] req_ram_addr    = |req_we ? req_wr_addr :
                                        req_load_addr ? req_addr_n : req_ram_addr_l;
 wire [RAM_BYTEW-1:0] stream_ram_addr = |stream_we ? stream_wr_addr :
                                        stream_load_addr ? stream_addr_n : stream_ram_addr_l;
+wire [RAM32_ADDRW-1:0] req_ram32_addr    = req_ram_addr[RAM_BYTEW-1:AW0];
+wire [RAM32_ADDRW-1:0] stream_ram32_addr = stream_ram_addr[RAM_BYTEW-1:AW0];
+wire [RAM16_AW:1]      req_ram16_addr    = req_ram_addr[RAM_BYTEW-1:1];
+wire [RAM16_AW:1]      stream_ram16_addr = stream_ram_addr[RAM_BYTEW-1:1];
 
 wire [AW-1:0]   fill_base_byte   = { req_tag_l,    {OFFW{1'b0}}, {AW0{1'b0}} };
 wire [AW-1:0]   victim_base_byte = { victim_tag_l, {OFFW{1'b0}}, {AW0{1'b0}} };
 wire [AW-1:0]   ext_base_byte    = st==S_WB_REQ || st==S_WB_STREAM ?
                                    victim_base_byte : fill_base_byte;
-wire [WW-1:0]   wb_half_idx      = DW == 32 && st == S_WB_STREAM && stream_word != LAST_WORD ?
+wire [WW-1:0]   wb_half_idx      = DW >= 32 && st == S_WB_STREAM && stream_word != LAST_WORD ?
                                    stream_word + WW'(1) : stream_word;
-wire [31:0]     req_q, stream_q;
-wire [31:0]     rd_resp_word     = pack_data(req_q, req_off_l);
+wire [127:0]    req_q, stream_q;
+wire [127:0]    rd_resp_word     = pack_data(req_q, req_off_l);
+wire [15:0]     req_q16, stream_q16;
+wire [31:0]     req_q0, req_q1, req_q2, req_q3;
+wire [31:0]     stream_q0, stream_q1, stream_q2, stream_q3;
 
 assign ext_addr = { {(EW-AW){1'b0}}, ext_base_byte[AW-1:1] };
 assign ext_dout = wb_ext_word(wb_q, wb_half_idx);
@@ -143,46 +163,111 @@ assign ext_rd   = st==S_FILL_REQ ||
                   st==S_FILL_WB_PRIME ||
                   (st==S_FILL_STREAM && stream_word != LAST_WORD);
 assign ext_wr   = st==S_WB_REQ || (st==S_WB_STREAM && stream_word != LAST_WORD);
+assign req_q    = DW < 32 ? { 112'd0, req_q16 } :
+                  { req_q3, req_q2, req_q1, req_q0 };
+assign stream_q = DW < 32 ? { 112'd0, stream_q16 } :
+                  { stream_q3, stream_q2, stream_q1, stream_q0 };
 
 generate
-if( DW == 32 ) begin : g_data_ram32
-    wire [31:0] req_q32, stream_q32;
+if( DW >= 32 ) begin : g_data_ram32
+    assign req_q16    = 16'd0;
+    assign stream_q16 = 16'd0;
     jtframe_dual_ram32 #(
-        .AW    ( RAM_BYTEW ),
-        .ENDIAN( ENDIAN    )
-    ) u_data_ram (
+        .AW    ( RAM32_AW     ),
+        .ENDIAN( RAM32_ENDIAN )
+    ) u_data_ram0 (
         .clk0 ( clk                           ),
-        .data0( req_wdata                     ),
-        .addr0( req_ram_addr[RAM_BYTEW-1:2]   ),
-        .we0  ( req_we                        ),
-        .q0   ( req_q32                       ),
+        .data0( req_wdata[31:0]               ),
+        .addr0( req_ram32_addr                ),
+        .we0  ( req_we[3:0]                   ),
+        .q0   ( req_q0                        ),
         .clk1 ( clk                           ),
-        .data1( stream_wdata                  ),
-        .addr1( stream_ram_addr[RAM_BYTEW-1:2]),
-        .we1  ( stream_we                     ),
-        .q1   ( stream_q32                    )
+        .data1( stream_wdata[31:0]            ),
+        .addr1( stream_ram32_addr             ),
+        .we1  ( stream_we[3:0]                ),
+        .q1   ( stream_q0                     )
     );
-    assign req_q    = req_q32;
-    assign stream_q = stream_q32;
+    if( DW >= 64 ) begin : g_data_ram64
+        jtframe_dual_ram32 #(
+            .AW    ( RAM32_AW     ),
+            .ENDIAN( 0            )
+        ) u_data_ram1 (
+            .clk0 ( clk                           ),
+            .data0( req_wdata[63:32]              ),
+            .addr0( req_ram32_addr                ),
+            .we0  ( req_we[7:4]                   ),
+            .q0   ( req_q1                        ),
+            .clk1 ( clk                           ),
+            .data1( stream_wdata[63:32]           ),
+            .addr1( stream_ram32_addr             ),
+            .we1  ( stream_we[7:4]                ),
+            .q1   ( stream_q1                     )
+        );
+    end else begin : g_data_ram64_unused
+        assign req_q1    = 32'd0;
+        assign stream_q1 = 32'd0;
+    end
+    if( DW >= 128 ) begin : g_data_ram128
+        jtframe_dual_ram32 #(
+            .AW    ( RAM32_AW     ),
+            .ENDIAN( 0            )
+        ) u_data_ram2 (
+            .clk0 ( clk                           ),
+            .data0( req_wdata[95:64]              ),
+            .addr0( req_ram32_addr                ),
+            .we0  ( req_we[11:8]                  ),
+            .q0   ( req_q2                        ),
+            .clk1 ( clk                           ),
+            .data1( stream_wdata[95:64]           ),
+            .addr1( stream_ram32_addr             ),
+            .we1  ( stream_we[11:8]               ),
+            .q1   ( stream_q2                     )
+        );
+        jtframe_dual_ram32 #(
+            .AW    ( RAM32_AW     ),
+            .ENDIAN( 0            )
+        ) u_data_ram3 (
+            .clk0 ( clk                           ),
+            .data0( req_wdata[127:96]             ),
+            .addr0( req_ram32_addr                ),
+            .we0  ( req_we[15:12]                 ),
+            .q0   ( req_q3                        ),
+            .clk1 ( clk                           ),
+            .data1( stream_wdata[127:96]          ),
+            .addr1( stream_ram32_addr             ),
+            .we1  ( stream_we[15:12]              ),
+            .q1   ( stream_q3                     )
+        );
+    end else begin : g_data_ram128_unused
+        assign req_q2    = 32'd0;
+        assign req_q3    = 32'd0;
+        assign stream_q2 = 32'd0;
+        assign stream_q3 = 32'd0;
+    end
 end else begin : g_data_ram16
-    wire [15:0] req_q16, stream_q16;
     jtframe_dual_ram16 #(
-        .AW    ( RAM_BYTEW-1 ),
-        .ENDIAN( ENDIAN      )
+        .AW    ( RAM16_AW ),
+        .ENDIAN( 0        )
     ) u_data_ram (
         .clk0 ( clk                           ),
         .data0( req_wdata[15:0]               ),
-        .addr0( req_ram_addr[RAM_BYTEW-1:1]   ),
+        .addr0( req_ram16_addr                ),
         .we0  ( req_we[1:0]                   ),
         .q0   ( req_q16                       ),
         .clk1 ( clk                           ),
         .data1( stream_wdata[15:0]            ),
-        .addr1( stream_ram_addr[RAM_BYTEW-1:1]),
+        .addr1( stream_ram16_addr             ),
         .we1  ( stream_we[1:0]                ),
         .q1   ( stream_q16                    )
     );
-    assign req_q    = { 16'd0, req_q16    };
-    assign stream_q = { 16'd0, stream_q16 };
+    assign req_q0    = 32'd0;
+    assign req_q1    = 32'd0;
+    assign req_q2    = 32'd0;
+    assign req_q3    = 32'd0;
+    assign stream_q0 = 32'd0;
+    assign stream_q1 = 32'd0;
+    assign stream_q2 = 32'd0;
+    assign stream_q3 = 32'd0;
 end
 endgenerate
 
@@ -199,94 +284,110 @@ function automatic [RAM_BYTEW-1:0] stream_baddr(
     input [BW-1:0] blk,
     input [WW-1:0] half_idx
 );
+    reg [OFFW-1:0] word_off;
     begin
-        stream_baddr = { blk, half_idx, 1'b0 };
+        if( DW < 32 ) begin
+            stream_baddr = { blk, half_idx, 1'b0 };
+        end else begin
+            word_off = OFFW'(half_idx >> HALF_SHIFT);
+            stream_baddr = RAM_BYTEW'({ blk, word_off, {STREAM_AW0{1'b0}} });
+        end
     end
 endfunction
 
-function automatic [31:0] pack_data(
-    input [31:0]         data_in,
+function automatic [127:0] pack_data(
+    input [127:0]        data_in,
     input [OFFW-1:0]     off
 );
     begin
         if( DW == 8 ) begin
-            pack_data = off[0] ? { 24'd0, data_in[15:8] } : { 24'd0, data_in[7:0] };
+            pack_data = off[0] ? { 120'd0, data_in[15:8] } : { 120'd0, data_in[7:0] };
         end else if( DW == 16 ) begin
-            pack_data = { 16'd0, data_in[15:0] };
+            pack_data = { 112'd0, data_in[15:0] };
         end else begin
             pack_data = data_in;
         end
     end
 endfunction
 
-function automatic [31:0] req_write_data(
+function automatic [127:0] req_write_data(
     input [DW-1:0]       din_in,
     input [OFFW-1:0]     off
 );
     begin
+        req_write_data = 128'd0;
         if( DW == 8 ) begin
-            req_write_data = off[0] ? { 16'd0, din_in[7:0], 8'd0 } :
-                                      { 16'd0, 8'd0,       din_in[7:0] };
+            req_write_data = off[0] ? { 112'd0, din_in[7:0], 8'd0 } :
+                                      { 112'd0, 8'd0,       din_in[7:0] };
         end else begin
-            req_write_data = { {(32-DW){1'b0}}, din_in };
+            req_write_data[DW-1:0] = din_in;
         end
     end
 endfunction
 
-function automatic [3:0] req_write_mask(
+function automatic [15:0] req_write_mask(
     input [MW-1:0]       dsn_in,
     input [OFFW-1:0]     off
 );
     begin
+        req_write_mask = 16'd0;
         if( DW == 8 ) begin
-            req_write_mask = off[0] ? 4'b0010 : 4'b0001;
+            req_write_mask = off[0] ? 16'h0002 : 16'h0001;
         end else begin
-            req_write_mask = { {(4-MW){1'b0}}, ~dsn_in };
+            req_write_mask[MW-1:0] = ~dsn_in;
         end
     end
 endfunction
 
-function automatic [31:0] fill_write_data(
+function automatic [127:0] fill_write_data(
     input [15:0]         ext_word,
     input [WW-1:0]       half_idx
 );
+    integer pos;
     begin
-        if( DW == 32 ) begin
-            if( ENDIAN )
-                fill_write_data = half_idx[0] ? { 16'd0, ext_word } : { ext_word, 16'd0 };
-            else
-                fill_write_data = half_idx[0] ? { ext_word, 16'd0 } : { 16'd0, ext_word };
+        fill_write_data = 128'd0;
+        if( DW < 32 ) begin
+            fill_write_data[15:0] = ext_word;
         end else begin
-            fill_write_data = { 16'd0, ext_word };
+            if( DW == 32 && ENDIAN )
+                pos = half_idx[0] ? 0 : 1;
+            else
+                pos = integer'(half_idx) % HALF_PER_WORD;
+            fill_write_data[pos*16 +: 16] = ext_word;
         end
     end
 endfunction
 
-function automatic [3:0] fill_write_mask(input [WW-1:0] half_idx);
+function automatic [15:0] fill_write_mask(input [WW-1:0] half_idx);
+    integer pos;
     begin
-        if( DW == 32 ) begin
-            if( ENDIAN )
-                fill_write_mask = half_idx[0] ? 4'b0011 : 4'b1100;
-            else
-                fill_write_mask = half_idx[0] ? 4'b1100 : 4'b0011;
+        fill_write_mask = 16'd0;
+        if( DW < 32 ) begin
+            fill_write_mask[1:0] = 2'b11;
         end else begin
-            fill_write_mask = 4'b0011;
+            if( DW == 32 && ENDIAN )
+                pos = half_idx[0] ? 0 : 1;
+            else
+                pos = integer'(half_idx) % HALF_PER_WORD;
+            fill_write_mask[pos*2 +: 2] = 2'b11;
         end
     end
 endfunction
 
 function automatic [15:0] wb_ext_word(
-    input [31:0]         data_in,
+    input [127:0]        data_in,
     input [WW-1:0]       half_idx
 );
+    integer pos;
     begin
-        if( DW == 32 ) begin
-            if( ENDIAN )
-                wb_ext_word = half_idx[0] ? data_in[15:0] : data_in[31:16];
-            else
-                wb_ext_word = half_idx[0] ? data_in[31:16] : data_in[15:0];
-        end else begin
+        if( DW < 32 ) begin
             wb_ext_word = data_in[15:0];
+        end else begin
+            if( DW == 32 && ENDIAN )
+                pos = half_idx[0] ? 0 : 1;
+            else
+                pos = integer'(half_idx) % HALF_PER_WORD;
+            wb_ext_word = data_in[pos*16 +: 16];
         end
     end
 endfunction
@@ -294,6 +395,21 @@ endfunction
 integer i;
 integer ofs;
 integer cand, tmp;
+
+initial begin
+    if( ENDIAN && DW != 32 ) begin
+        $display("jtframe_cache parameter error: ENDIAN=1 requires DW=32");
+        $finish;
+    end
+    if( BLOCKS < 1 || (BLOCKS & (BLOCKS-1)) != 0 ) begin
+        $display("jtframe_cache parameter error: BLOCKS must be a power of 2 and non-zero");
+        $finish;
+    end
+    if( BLKSIZE < 16 ) begin
+        $display("jtframe_cache parameter error: BLKSIZE must be at least 16 bytes");
+        $finish;
+    end
+end
 
 always @* begin
     hit_now = 1'b0;
@@ -334,12 +450,12 @@ end
 
 always @* begin
     req_load_addr    = 1'b0;
-    req_we           = 4'b0000;
-    req_wdata        = 32'd0;
+    req_we           = 16'd0;
+    req_wdata        = 128'd0;
     req_addr_n       = req_ram_addr_l;
     stream_load_addr = 1'b0;
-    stream_we        = 4'b0000;
-    stream_wdata     = 32'd0;
+    stream_we        = 16'd0;
+    stream_wdata     = 128'd0;
     stream_addr_n    = stream_ram_addr_l;
     case( st )
         S_IDLE: begin
@@ -352,10 +468,10 @@ always @* begin
             end
         end
         S_WB_PRIME: begin
-            if( DW == 32 ) begin
-                if( WORDS > 2 ) begin
+            if( DW >= 32 ) begin
+                if( WORDS > HALF_PER_WORD ) begin
                     stream_load_addr = 1'b1;
-                    stream_addr_n    = stream_baddr(blk_l, WW'(2));
+                    stream_addr_n    = stream_baddr(blk_l, WW'(HALF_PER_WORD));
                 end
             end else begin
                 if( WORDS > 1 ) begin
@@ -365,16 +481,18 @@ always @* begin
             end
         end
         S_WB_REQ: begin
-            if( DW != 32 && ext_ack && WORDS > 2 ) begin
+            if( DW < 32 && ext_ack && WORDS > 2 ) begin
                 stream_load_addr = 1'b1;
                 stream_addr_n    = stream_baddr(blk_l, WW'(2));
             end
         end
         S_WB_STREAM: begin
-            if( DW == 32 ) begin
-                if( WORDS > 3 && stream_word[0] && stream_word < LAST_WORD-WW'(2) ) begin
+            if( DW >= 32 ) begin
+                if( WORDS > (2*HALF_PER_WORD) &&
+                    (integer'(stream_word) % HALF_PER_WORD) == HALF_PER_WORD-1 &&
+                    stream_word < LAST_WORD-WW'(HALF_PER_WORD) ) begin
                     stream_load_addr = 1'b1;
-                    stream_addr_n    = stream_baddr(blk_l, stream_word + WW'(3));
+                    stream_addr_n    = stream_baddr(blk_l, stream_word + WW'(HALF_PER_WORD+1));
                 end
             end else begin
                 if( WORDS > 3 && stream_word < LAST_WORD-WW'(2) ) begin
@@ -426,11 +544,14 @@ always @(posedge clk) begin
         last_blk     <= {BW{1'b0}};
         victim_tag_l <= {TAGW{1'b0}};
         stream_word  <= {WW{1'b0}};
-        wb_q         <= 32'd0;
+        wb_q         <= 128'd0;
         req_ram_addr_l    <= {RAM_BYTEW{1'b0}};
         stream_ram_addr_l <= {RAM_BYTEW{1'b0}};
         dout         <= {DW{1'b0}};
         ok           <= 1'b0;
+`ifdef SIMULATION
+        ext_total_read_kb = 0.0;
+`endif
     end else begin
         if( req_load_addr )    req_ram_addr_l    <= req_addr_n;
         if( stream_load_addr ) stream_ram_addr_l <= stream_addr_n;
@@ -439,6 +560,10 @@ always @(posedge clk) begin
         wr_l <= wr;
         ok   <= 1'b0;
         lfsr <= { lfsr[14:0], lfsr[15]^lfsr[13]^lfsr[12]^lfsr[10] };
+`ifdef SIMULATION
+        if( st == S_FILL_REQ && ext_ack )
+            ext_total_read_kb = ext_total_read_kb + (BLKSIZE / 1024.0);
+`endif
 
         case( st )
             S_IDLE: begin
@@ -484,7 +609,7 @@ always @(posedge clk) begin
             end
             S_WB_REQ: begin
                 if( ext_ack ) begin
-                    if( DW == 32 ) begin
+                    if( DW >= 32 ) begin
                         stream_word <= {WW{1'b0}};
                     end else begin
                         wb_q        <= stream_q;
@@ -499,8 +624,9 @@ always @(posedge clk) begin
                     fill_tail_seen <= 1'b0;
                     st             <= S_WB_GAP;
                 end else if( stream_word != LAST_WORD ) begin
-                    if( DW == 32 ) begin
-                        if( !stream_word[0] ) wb_q <= stream_q;
+                    if( DW >= 32 ) begin
+                        if( (integer'(stream_word) % HALF_PER_WORD) == HALF_PER_WORD-2 )
+                            wb_q <= stream_q;
                     end else begin
                         wb_q <= stream_q;
                     end

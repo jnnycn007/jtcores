@@ -357,7 +357,8 @@ jtframe_headerbyte #(.AW(6)) u_pcbid(
 {{- if gt (len .SDRAM.Cache_lines) 0 }}
 jtframe_cache_mux #(
     .SDRAM_AW ( SDRAMW ),
-    .ENDIAN   ( {{if .SDRAM.Big_endian}}1{{else}}0{{end}} ){{- range $index, $line := .SDRAM.Cache_lines }},
+    .ENDIAN   ( 0 ){{- range $index, $line := .SDRAM.Cache_lines }},
+    .ENDIAN{{$index}} ( {{if and $.SDRAM.Big_endian (eq $line.Cache.Data_width 32)}}1{{else}}0{{end}} ),
     .AW{{$index}}      ( {{ cache_line_aw $line }} ),
     .BLOCKS{{$index}}  ( {{ $line.Cache.Blocks }} ),
     .BLKSIZE{{$index}} ( {{ $line.Cache.Size_bytes }} ),

@@ -7,11 +7,11 @@ module test;
 localparam integer PERIOD     = 10;
 localparam integer HF         = 1;
 localparam integer SDRAM_AW   = 23;
-localparam integer BLKSIZE    = 64;
+localparam integer BLKSIZE    = 1024;
 localparam integer LINE_UNITS = BLKSIZE / 4;
-localparam integer WORDS      = 1024;
-localparam integer OFFSET0_W  =   0;
-localparam integer OFFSET4_W  = 256;
+localparam integer WORDS      = 4096;
+localparam integer OFFSET0_W  =    0;
+localparam integer OFFSET4_W  = 1024;
 
 reg                 rst;
 reg                 clk;

@@ -52,10 +52,14 @@ Each lane has:
 - its own cache geometry: `BLOCKSN`, `BLKSIZEN`, `DWN`
 - its own SDRAM bank: `BAN`
 - its own offset: `OFFSETN`
+- its own endianness flag: `ENDIANn`
 
 The mux adds `OFFSETN` to the cache-generated external address and forwards `BAN` to the burst controller.
 
 Offsets are applied in the same half-word address space used by the cache external interface.
+
+The generator only enables `ENDIANn=1` for lanes with `DWN=32`. Wider lanes
+use little-endian packing only.
 
 ## Write Lanes
 
