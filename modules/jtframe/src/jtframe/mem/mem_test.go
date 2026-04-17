@@ -231,40 +231,57 @@ func Test_BRAMBus_Size_Rejections(t *testing.T) {
 	}
 }
 
-func Test_BRAMBus_SimBigEndian_Unmarshal(t *testing.T) {
+func Test_BRAMBus_Simfile_Unmarshal(t *testing.T) {
 	sample := `bram:
   - { name: default_little, size: 1kB }
-  - { name: explicit_big, size: 1kB, sim_big_endian: true }
+  - { name: explicit_big, size: 1kB, simfile: { big_endian: true } }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
 		t.Fatal(e)
 	}
-	if cfg.BRAM[0].Sim_big_endian {
-		t.Fatalf("Expected sim_big_endian to default to false")
+	if cfg.BRAM[0].Simfile.Enabled {
+		t.Fatalf("Expected simfile to be disabled by default")
 	}
-	if !cfg.BRAM[1].Sim_big_endian {
-		t.Fatalf("Expected sim_big_endian to unmarshal as true")
+	if !cfg.BRAM[1].Simfile.Enabled {
+		t.Fatalf("Expected simfile to be enabled when object is present")
+	}
+	if !cfg.BRAM[1].Simfile.Big_endian {
+		t.Fatalf("Expected BRAM simfile.big_endian to unmarshal as true")
 	}
 }
 
-func Test_BRAMBus_SimBigEndian_Validation(t *testing.T) {
+func Test_BRAMBus_Unmarshal_RejectsOldSimFields(t *testing.T) {
+	sample := `bram:
+  - { name: old, size: 1kB, sim_file: true, sim_big_endian: true }
+`
+	var cfg MemConfig
+	e := yaml.Unmarshal([]byte(sample), &cfg)
+	if e == nil {
+		t.Fatal("Expected old BRAM sim fields to be rejected")
+	}
+	if !strings.Contains(e.Error(), "Unexpected field sim_") {
+		t.Fatalf("Wrong error for old BRAM sim schema. Got %v", e)
+	}
+}
+
+func Test_BRAMBus_Simfile_Validation(t *testing.T) {
 	cfg := MemConfig{
 		BRAM: []BRAMBus{
 			{
-				Name:           "bytes",
-				Data_width:     8,
-				Sim_big_endian: true,
+				Name:       "bytes",
+				Data_width: 8,
+				Simfile:    BRAMSimfile{Enabled: true, Big_endian: true},
 			},
 			{
-				Name:           "words",
-				Data_width:     16,
-				Sim_big_endian: true,
+				Name:       "words",
+				Data_width: 16,
+				Simfile:    BRAMSimfile{Enabled: true, Big_endian: true},
 			},
 			{
-				Name:           "longs",
-				Data_width:     32,
-				Sim_big_endian: true,
+				Name:       "longs",
+				Data_width: 32,
+				Simfile:    BRAMSimfile{Enabled: true, Big_endian: true},
 			},
 		},
 	}
@@ -363,7 +380,7 @@ func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
       data_width: 32
       blocks: { count: 32, size: 1kB }
       at:    { bank: 3, offset: CHAR, length: 8MB }
-      simfile: { name: tilechar.bin, big_endian: true }
+      simfile: { name: tilechar.bin, big_endian: true, data_type: u32 }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
@@ -393,6 +410,9 @@ func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
 	}
 	if !line.Simfile.Big_endian {
 		t.Fatalf("Expected cache-lane simfile.big_endian to unmarshal as true")
+	}
+	if line.Simfile.Data_type != "u32" {
+		t.Fatalf("Expected cache-lane simfile.data_type to unmarshal as u32, got %q", line.Simfile.Data_type)
 	}
 }
 
@@ -453,18 +473,40 @@ func Test_SDRAMBus_Simfile_Unmarshal(t *testing.T) {
         - name: tiles
           addr_width: 12
           data_width: 16
-          simfile: tiles.bin
-          sim_big_endian: true
+          simfile: { name: tiles.bin, big_endian: true, data_type: u16 }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
 		t.Fatal(e)
 	}
-	if got := cfg.SDRAM.Banks[0].Buses[0].Simfile; got != "tiles.bin" {
+	if got := cfg.SDRAM.Banks[0].Buses[0].Simfile.Name; got != "tiles.bin" {
 		t.Fatalf("Wrong bus simfile. Got %s", got)
 	}
-	if !cfg.SDRAM.Banks[0].Buses[0].Sim_big_endian {
-		t.Fatalf("Expected bus sim_big_endian to unmarshal as true")
+	if !cfg.SDRAM.Banks[0].Buses[0].Simfile.Big_endian {
+		t.Fatalf("Expected bus simfile.big_endian to unmarshal as true")
+	}
+	if cfg.SDRAM.Banks[0].Buses[0].Simfile.Data_type != "u16" {
+		t.Fatalf("Expected bus simfile.data_type to unmarshal as u16")
+	}
+}
+
+func Test_SDRAMBus_Unmarshal_RejectsOldSimBigEndian(t *testing.T) {
+	sample := `sdram:
+  banks:
+    - buses:
+        - name: tiles
+          addr_width: 12
+          data_width: 16
+          simfile: { name: tiles.bin }
+          sim_big_endian: true
+`
+	var cfg MemConfig
+	e := yaml.Unmarshal([]byte(sample), &cfg)
+	if e == nil {
+		t.Fatal("Expected old SDRAM bus sim_big_endian field to be rejected")
+	}
+	if !strings.Contains(e.Error(), "Unexpected field sim_big_endian in SDRAM bus") {
+		t.Fatalf("Wrong error for old SDRAM bus sim schema. Got %v", e)
 	}
 }
 
@@ -474,7 +516,7 @@ func Test_check_sdram_cache_lanes(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{
 				{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 32,
 					Blocks: SDRAMCacheCfg{
 						Count: 32,
@@ -487,7 +529,7 @@ func Test_check_sdram_cache_lanes(t *testing.T) {
 					},
 				},
 				{
-					Name: "pal",
+					Name:       "pal",
 					Data_width: 16,
 					Blocks: SDRAMCacheCfg{
 						Count: 8,
@@ -519,9 +561,9 @@ func Test_check_sdram_cache_lanes_accepts_exact_bank_end(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
-				Name: "tiles",
+				Name:       "tiles",
 				Data_width: 32,
-				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+				Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "8kB",
@@ -539,9 +581,9 @@ func Test_check_sdram_cache_lanes_rejects_bank_overflow(t *testing.T) {
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
-				Name: "tiles",
+				Name:       "tiles",
 				Data_width: 32,
-				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+				Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "16kB",
@@ -559,9 +601,9 @@ func Test_check_sdram_cache_lanes_accepts_large_bank_overflow_case(t *testing.T)
 	cfg := MemConfig{
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
-				Name: "tiles",
+				Name:       "tiles",
 				Data_width: 32,
-				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+				Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "16kB",
@@ -586,10 +628,10 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 		{
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 32,
-					Blocks: SDRAMCacheCfg{Count: 0, Size: "1kB"},
-					At: SDRAMCacheAddr{Length: "8MB"},
+					Blocks:     SDRAMCacheCfg{Count: 0, Size: "1kB"},
+					At:         SDRAMCacheAddr{Length: "8MB"},
 				}},
 			},
 		},
@@ -607,19 +649,19 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 		{
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 24,
-					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
-					At: SDRAMCacheAddr{Length: "8MB"},
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					At:         SDRAMCacheAddr{Length: "8MB"},
 				}},
 			},
 		},
 		{
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 16,
-					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "UNKNOWN",
 						Length: "8MB",
@@ -630,11 +672,22 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 		{
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 8,
-					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
-					At:        SDRAMCacheAddr{Length: "8MB"},
-					Simfile:   SDRAMCacheSimfile{Name: "tiles.bin", Big_endian: true},
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					At:         SDRAMCacheAddr{Length: "8MB"},
+					Simfile:    SDRAMCacheSimfile{Name: "tiles.bin", Big_endian: true},
+				}},
+			},
+		},
+		{
+			SDRAM: SDRAMCfg{
+				Cache_lanes: []SDRAMCacheLine{{
+					Name:       "tiles",
+					Data_width: 128,
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					At:         SDRAMCacheAddr{Length: "8MB"},
+					Simfile:    SDRAMCacheSimfile{Name: "tiles.bin", Big_endian: true},
 				}},
 			},
 		},
@@ -660,15 +713,36 @@ func Test_check_sdram_rejects_8bit_big_endian_bank_simfile(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Banks: []SDRAMBank{{
 				Buses: []SDRAMBus{{
-					Name:           "tiles",
-					Data_width:     8,
-					Sim_big_endian: true,
+					Name:       "tiles",
+					Data_width: 8,
+					Simfile:    SDRAMBusSimfile{Name: "tiles.bin", Big_endian: true},
 				}},
 			}},
 		},
 	}
 	if e := cfg.check_sdram(); e == nil {
-		t.Fatal("Expected 8-bit bank sim_big_endian to fail")
+		t.Fatal("Expected 8-bit bank simfile.big_endian to fail")
+	}
+}
+
+func Test_check_sdram_rejects_wide_big_endian_bank_simfile_without_data_type(t *testing.T) {
+	cfg := MemConfig{
+		SDRAM: SDRAMCfg{
+			Banks: []SDRAMBank{{
+				Buses: []SDRAMBus{{
+					Name:       "tiles",
+					Data_width: 64,
+					Simfile:    SDRAMBusSimfile{Name: "tiles.bin", Big_endian: true},
+				}},
+			}},
+		},
+	}
+	err := cfg.check_sdram()
+	if err == nil {
+		t.Fatal("Expected wide big-endian bank simfile without data_type to fail")
+	}
+	if !strings.Contains(err.Error(), "simfile.data_type") {
+		t.Fatalf("Wrong error for missing bank simfile.data_type. Got %v", err)
 	}
 }
 
@@ -695,9 +769,9 @@ func Test_check_sdram_cache_lanes_accepts_hex_offset(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{
 				{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 16,
-					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "0x100",
 						Length: "256kB",
@@ -717,9 +791,9 @@ func Test_check_sdram_cache_lanes_rejects_decimal_offset(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{
 				{
-					Name: "tiles",
+					Name:       "tiles",
 					Data_width: 16,
-					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					Blocks:     SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "256",
 						Length: "256kB",
@@ -1061,12 +1135,12 @@ func Test_game_sdram_template_uses_32bit_bram_wrappers(t *testing.T) {
     addr_width: 11
     data_width: 32
     rw: true
-    sim_file: true
+    simfile: {}
   - name: scene
     addr_width: 12
     data_width: 32
     rw: true
-    sim_file: true
+    simfile: {}
     dual_port:
       name: video
       rw: true

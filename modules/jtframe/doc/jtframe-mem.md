@@ -116,8 +116,9 @@ sdram:
           gfx_sort: hvvv(x) # makes it vvvh useful for 4-bit encodings
           gfx_sort_en: signal to and with gfx_sort to isolate sort convention for only a game
           do_not_erase: true # for rw slots, do not clear upon reset
-          simfile: tiles.bin # optional, used only by jtutil sdram --sim
-          sim_big_endian: true # optional for 16/32-bit simfile loads; invalid for 8-bit buses
+          [simfile: { name: tiles.bin }] # optional, used only by jtutil sdram --sim
+          # add big_endian: true inside simfile for 16/32-bit simfile loads; invalid for 8-bit buses
+          # add data_type: u16 or u32 when big_endian is true and data_width is wider than 32 bits
         - name: another bus...
           when: [ POCKET ]        # use when/unless to set conditions that enabled or disabled the buses
     - buses: # same for bank 1
@@ -130,22 +131,23 @@ sdram:
   [big_endian: true] # optional for cache-lanes; for 32-bit cache lanes low SDRAM word goes to dout[31:16]
   cache-lanes:
     - name: tiles
-      cache:
-        blocks: 32
+      data_width: 32
+      blocks:
+        count: 32
         size: 1kB
-        data_width: 32
       at:
         bank: 3
         offset: TILES
         length: 8MB
-      simfile: tilechar.bin
-      sim_big_endian: true
+      simfile: { name: tilechar.bin, big_endian: true, data_type: u32 }
       # Cache lines are bank-relative and use 16-bit SDRAM word units for offset
       # offset must be either a parameter name or an explicit hexadecimal value
       # length is the address space exposed to the cache client
       # cache-lanes generate jtframe_cache/jtframe_cache_mux based SDRAM access
       # sdram.big_endian changes 32-bit cache lane ordering in generated RTL
-      # simfile and sim_big_endian are only consumed by jtutil sdram --sim
+      # simfile.name, simfile.big_endian, and simfile.data_type are only consumed by jtutil sdram --sim
+      # simfile.data_type may be u16 or u32; if omitted, jtutil derives it from data_width for 16/32-bit lanes
+      # cache-lanes wider than 32 bits must set simfile.data_type when simfile.big_endian is true
 # BRAM connections
 bram:
     - name: vram
@@ -155,8 +157,8 @@ bram:
       [cs:]
       [addr:]
       [din:]
-      [sim_file: true]
-      [sim_big_endian: true] # optional for 16/32-bit SIMFILE loads; default is little-endian
+      [simfile: {}]
+      [simfile: { big_endian: true }] # optional for 16/32-bit SIMFILE loads; default is little-endian
       ioctl:  # optionally dump to RAM file (mainly MiST/SiDi)
         save: true # a dump2bin.sh file will be generated in the sim folder
         restore: true # whether to load it upon core boot
@@ -174,10 +176,10 @@ bram:
     - name: mcu_rom
       addr_width: 12
       data_width: 8
-      sim_file: required if load is skipped
-      # sim_file defaults to little-endian lane mapping
-      # sim_big_endian: true swaps the byte lanes for 16/32-bit BRAMs
-      # sim_big_endian is invalid for 8-bit BRAMs
+      simfile: {} # required if load is skipped
+      # simfile defaults to little-endian lane mapping
+      # simfile.big_endian: true swaps the byte lanes for 16/32-bit BRAMs
+      # simfile.big_endian is invalid for 8-bit BRAMs
       rom:
         offset: position in prog_addr*2, with the bank number taking bits 24:23
     # BRAM used as PROM. Data width must be 8 or less

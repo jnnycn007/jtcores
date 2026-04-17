@@ -69,7 +69,9 @@ If ` + "`" + `--sim` + "`" + ` is used, jtutil sdram also patches the generated 
 the ` + "`" + `simfile` + "`" + ` entries defined in ` + "`" + `sdram.banks[].buses[]` + "`" + ` and
 ` + "`" + `sdram.cache-lanes[]` + "`" + `. Files are copied in place at the bank-relative
 offset defined in mem.yaml, with optional 16/32-bit byte swapping when
-` + "`" + `sim_big_endian` + "`" + ` is true.
+` + "`" + `simfile.big_endian` + "`" + ` is true. Optional ` + "`" + `simfile.data_type` + "`" + `
+may be ` + "`" + `u16` + "`" + ` or ` + "`" + `u32` + "`" + `; if omitted, jtutil derives it from
+` + "`" + `data_width` + "`" + ` for 16-bit and 32-bit entries, and wider big-endian entries must set it explicitly.
 `,
 	Run:  run_sdram,
 	Args: cobra.MaximumNArgs(1),

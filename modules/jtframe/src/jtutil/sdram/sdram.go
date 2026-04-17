@@ -270,11 +270,12 @@ func collectSimFiles(cfg *mem.MemConfig) ([]sim_file_entry, error) {
 }
 
 func makeBusSimFileEntry(resolver *expressionResolver, bank_idx int, bus mem.SDRAMBus) (sim_file_entry, bool, error) {
-	simfile := strings.TrimSpace(bus.Simfile)
+	simfile := strings.TrimSpace(bus.Simfile.Name)
 	if simfile == "" {
 		return sim_file_entry{}, false, nil
 	}
-	if err := validateSimDataWidth("bus", bus.Name, bus.Data_width, bus.Sim_big_endian); err != nil {
+	sim_data_width, err := mem.ResolveSimfileDataWidth("bus", bus.Name, bus.Data_width, bus.Simfile.Data_type, bus.Simfile.Big_endian)
+	if err != nil {
 		return sim_file_entry{}, false, err
 	}
 	if bus.Addr_width < 0 || bus.Addr_width >= strconv.IntSize {
@@ -295,8 +296,8 @@ func makeBusSimFileEntry(resolver *expressionResolver, bank_idx int, bus mem.SDR
 		bank:       bank_idx,
 		offset:     offset,
 		length:     length,
-		data_width: bus.Data_width,
-		big_endian: bus.Sim_big_endian,
+		data_width: sim_data_width,
+		big_endian: bus.Simfile.Big_endian,
 	}, true, nil
 }
 
@@ -305,7 +306,8 @@ func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCache
 	if simfile == "" {
 		return sim_file_entry{}, false, nil
 	}
-	if err := validateSimDataWidth("cache-lane", line.Name, line.Data_width, line.Simfile.Big_endian); err != nil {
+	sim_data_width, err := mem.ResolveSimfileDataWidth("cache-lane", line.Name, line.Data_width, line.Simfile.Data_type, line.Simfile.Big_endian)
+	if err != nil {
 		return sim_file_entry{}, false, err
 	}
 	offset, err := resolveSimOffset(resolver, line.At.Offset, "cache-lane", line.Name)
@@ -326,21 +328,9 @@ func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCache
 		bank:       line.At.Bank,
 		offset:     offset,
 		length:     length,
-		data_width: line.Data_width,
+		data_width: sim_data_width,
 		big_endian: line.Simfile.Big_endian,
 	}, true, nil
-}
-
-func validateSimDataWidth(kind, name string, data_width int, big_endian bool) error {
-	switch data_width {
-	case 8, 16, 32, 64, 128:
-	default:
-		return fmt.Errorf("%s %s uses unsupported data_width %d", kind, name, data_width)
-	}
-	if big_endian && data_width == 8 {
-		return fmt.Errorf("%s %s cannot use sim_big_endian with 8-bit data width", kind, name)
-	}
-	return nil
 }
 
 func resolveSimOffset(resolver *expressionResolver, text, kind, name string) (int, error) {
@@ -436,7 +426,7 @@ func swapSimFileData(data []byte, data_width int, big_endian bool) error {
 	}
 	word_bytes := data_width >> 3
 	if word_bytes <= 1 {
-		return fmt.Errorf("sim_big_endian requires 16-bit or 32-bit data width")
+		return fmt.Errorf("simfile.big_endian requires 16-bit or 32-bit data width")
 	}
 	if (len(data) % word_bytes) != 0 {
 		return fmt.Errorf("file length %d is not divisible by %d-byte words", len(data), word_bytes)

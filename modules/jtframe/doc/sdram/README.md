@@ -40,6 +40,7 @@ Relevant rules:
 - `rw: true` is allowed only on cache lanes `0..3`; lanes `4..7` are read-only
 - `simfile.name` is the optional preload file for simulation
 - `simfile.big_endian` only applies to simulation file parsing
+- `simfile.data_type` may be `u16` or `u32` for `jtutil sdram --sim`; wider big-endian lanes must set it explicitly
 - `sdram.big_endian: true` only applies to cache lanes with `data_width: 32`
 
 Generated game-module ports follow the usual `name_addr`, `name_data`, `name_cs`, `name_ok` pattern, with `name_we`, `name_din`, and `name_dsn` added for writable cache lanes.

@@ -262,8 +262,8 @@ func (cfg *MemConfig) check_gfx_sort() error {
 func (cfg *MemConfig) normalize_bram() error {
 	for k := range cfg.BRAM {
 		bram := &cfg.BRAM[k]
-		if bram.Sim_big_endian && bram.Data_width == 8 {
-			return fmt.Errorf("BRAM %s cannot use sim_big_endian with 8-bit data width", bram.Name)
+		if bram.Simfile.Big_endian && bram.Data_width == 8 {
+			return fmt.Errorf("BRAM %s cannot use simfile.big_endian with 8-bit data width", bram.Name)
 		}
 		if bram.Size == nil {
 			continue
@@ -598,8 +598,8 @@ Set JTFRAME_HEADER in macros.def and define a [header.offset] in mame2mra.toml`)
 		}
 		total_ram := 0
 		for _, bus := range each.Buses {
-			if bus.Sim_big_endian && bus.Data_width == 8 {
-				return fmt.Errorf("jtframe mem: SDRAM bus %s in bank %d cannot use sim_big_endian with 8-bit data width", bus.Name, k)
+			if _, e := ResolveSimfileDataWidth("SDRAM bus", bus.Name, bus.Data_width, bus.Simfile.Data_type, bus.Simfile.Big_endian); e != nil {
+				return fmt.Errorf("jtframe mem: %w", e)
 			}
 			if bus.Rw {
 				total_ram++
@@ -696,6 +696,38 @@ func (cfg *MemConfig) mark_all_banks_unused() {
 	}
 }
 
+func ResolveSimfileDataWidth(kind, name string, data_width int, data_type string, big_endian bool) (int, error) {
+	switch data_width {
+	case 8, 16, 32, 64, 128:
+	default:
+		return 0, fmt.Errorf("%s %s uses unsupported data_width %d", kind, name, data_width)
+	}
+
+	data_type = strings.TrimSpace(strings.ToLower(data_type))
+	switch data_type {
+	case "":
+	case "u16":
+		return 16, nil
+	case "u32":
+		return 32, nil
+	default:
+		return 0, fmt.Errorf("%s %s uses unsupported simfile.data_type %q (use u16 or u32)", kind, name, data_type)
+	}
+
+	if !big_endian {
+		return data_width, nil
+	}
+	if data_width == 8 {
+		return 0, fmt.Errorf("%s %s cannot use simfile.big_endian with 8-bit data width", kind, name)
+	}
+	switch data_width {
+	case 16, 32:
+		return data_width, nil
+	default:
+		return 0, fmt.Errorf("%s %s uses data_width %d with simfile.big_endian; set simfile.data_type to u16 or u32", kind, name, data_width)
+	}
+}
+
 func (cfg *MemConfig) parse_cache_lanes(param_values map[string]string) (total_cache, max_cache_size int, err error) {
 	bank_size_bytes := int64(8 * 1024 * 1024)
 	if macros.IsSet("JTFRAME_SDRAM_LARGE") {
@@ -714,8 +746,8 @@ func (cfg *MemConfig) parse_cache_lanes(param_values map[string]string) (total_c
 		default:
 			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s uses unsupported data_width %d", line.Name, line.Data_width)
 		}
-		if line.Simfile.Big_endian && line.Data_width == 8 {
-			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s cannot use simfile.big_endian with 8-bit data width", line.Name)
+		if _, e := ResolveSimfileDataWidth("cache-lane", line.Name, line.Data_width, line.Simfile.Data_type, line.Simfile.Big_endian); e != nil {
+			return 0, 0, fmt.Errorf("jtframe mem: %w", e)
 		}
 		if Verbose && cfg.SDRAM.Big_endian && line.Data_width != 32 {
 			fmt.Printf("WARNING: sdram.big_endian only applies to 32-bit cache-lanes; %s uses %d bits and will force little-endian packing\n",
@@ -1011,7 +1043,7 @@ func make_ioctl(cfg *MemConfig) int {
 		if each == nil {
 			continue
 		}
-		each.Sim_file = true
+		each.Simfile.Enabled = true
 		if each.Ioctl.Order >= len(cfg.Ioctl.Buses) {
 			fmt.Printf("mem.yaml: too many IOCTL buses for BRAM\n")
 			os.Exit(1)
