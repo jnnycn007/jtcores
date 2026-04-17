@@ -335,11 +335,11 @@ func TestCollectSimFiles(t *testing.T) {
 				}},
 			}},
 			Cache_lanes: []mem.SDRAMCacheLine{{
-				Name:           "line",
-				Cache:          mem.SDRAMCacheCfg{Data_width: 32},
-				At:             mem.SDRAMCacheAddr{Bank: 3, Offset: "0x20", Length: "64B"},
-				Simfile:        "line.bin",
-				Sim_big_endian: true,
+				Name:       "line",
+				Data_width: 32,
+				Blocks:     mem.SDRAMCacheCfg{Count: 1, Size: "64B"},
+				At:         mem.SDRAMCacheAddr{Bank: 3, Offset: "0x20", Length: "64B"},
+				Simfile:    mem.SDRAMCacheSimfile{Name: "line.bin", Big_endian: true},
 			}},
 		},
 	}

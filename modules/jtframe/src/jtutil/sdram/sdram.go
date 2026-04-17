@@ -301,11 +301,11 @@ func makeBusSimFileEntry(resolver *expressionResolver, bank_idx int, bus mem.SDR
 }
 
 func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCacheLine) (sim_file_entry, bool, error) {
-	simfile := strings.TrimSpace(line.Simfile)
+	simfile := strings.TrimSpace(line.Simfile.Name)
 	if simfile == "" {
 		return sim_file_entry{}, false, nil
 	}
-	if err := validateSimDataWidth("cache-lane", line.Name, line.Cache.Data_width, line.Sim_big_endian); err != nil {
+	if err := validateSimDataWidth("cache-lane", line.Name, line.Data_width, line.Simfile.Big_endian); err != nil {
 		return sim_file_entry{}, false, err
 	}
 	offset, err := resolveSimOffset(resolver, line.At.Offset, "cache-lane", line.Name)
@@ -326,8 +326,8 @@ func makeCacheLaneSimFileEntry(resolver *expressionResolver, line mem.SDRAMCache
 		bank:       line.At.Bank,
 		offset:     offset,
 		length:     length,
-		data_width: line.Cache.Data_width,
-		big_endian: line.Sim_big_endian,
+		data_width: line.Data_width,
+		big_endian: line.Simfile.Big_endian,
 	}, true, nil
 }
 

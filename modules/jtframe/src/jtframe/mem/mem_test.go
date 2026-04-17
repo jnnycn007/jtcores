@@ -360,10 +360,10 @@ func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
   big_endian: true
   cache-lanes:
     - name: tiles
-      cache: { blocks: 32, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 32, size: 1kB }
       at:    { bank: 3, offset: CHAR, length: 8MB }
-      simfile: tilechar.bin
-      sim_big_endian: true
+      simfile: { name: tilechar.bin, big_endian: true }
 `
 	var cfg MemConfig
 	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
@@ -382,11 +382,17 @@ func Test_SDRAMCacheLine_Unmarshal(t *testing.T) {
 	if line.At.Offset != "CHAR" {
 		t.Fatalf("Wrong cache-lane offset. Got %s", line.At.Offset)
 	}
-	if line.Simfile != "tilechar.bin" {
-		t.Fatalf("Wrong cache-lane simfile. Got %s", line.Simfile)
+	if line.Data_width != 32 {
+		t.Fatalf("Wrong cache-lane data width. Got %d", line.Data_width)
 	}
-	if !line.Sim_big_endian {
-		t.Fatalf("Expected cache-lane sim_big_endian to unmarshal as true")
+	if line.Blocks.Count != 32 || line.Blocks.Size != "1kB" {
+		t.Fatalf("Wrong cache-lane blocks. Got %+v", line.Blocks)
+	}
+	if line.Simfile.Name != "tilechar.bin" {
+		t.Fatalf("Wrong cache-lane simfile. Got %s", line.Simfile.Name)
+	}
+	if !line.Simfile.Big_endian {
+		t.Fatalf("Expected cache-lane simfile.big_endian to unmarshal as true")
 	}
 }
 
@@ -394,7 +400,8 @@ func Test_SDRAMCacheLine_Unmarshal_RejectsStart(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: tiles
-      cache: { blocks: 32, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 32, size: 1kB }
       at:    { bank: 3, start: CHAR, length: 8MB }
 `
 	var cfg MemConfig
@@ -407,7 +414,8 @@ func Test_SDRAMCacheLine_Unmarshal_RejectsWrAlias(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: tiles
-      cache: { blocks: 32, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 32, size: 1kB }
       at:    { bank: 3, offset: CHAR, length: 8MB }
       wr: true
 `
@@ -418,6 +426,23 @@ func Test_SDRAMCacheLine_Unmarshal_RejectsWrAlias(t *testing.T) {
 	}
 	if !strings.Contains(e.Error(), "Unexpected field wr in cache line") {
 		t.Fatalf("Wrong error for cache-lane wr alias. Got %v", e)
+	}
+}
+
+func Test_SDRAMCacheLine_Unmarshal_RejectsOldCacheWrapper(t *testing.T) {
+	sample := `sdram:
+  cache-lanes:
+    - name: tiles
+      cache: { blocks: 32, size: 1kB, data_width: 32 }
+      at:    { bank: 3, offset: CHAR, length: 8MB }
+`
+	var cfg MemConfig
+	e := yaml.Unmarshal([]byte(sample), &cfg)
+	if e == nil {
+		t.Fatal("Expected old cache wrapper schema to be rejected")
+	}
+	if !strings.Contains(e.Error(), "Unexpected field cache in cache line") {
+		t.Fatalf("Wrong error for old cache wrapper. Got %v", e)
 	}
 }
 
@@ -450,10 +475,10 @@ func Test_check_sdram_cache_lanes(t *testing.T) {
 			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     32,
-						Size:       "1kB",
-						Data_width: 32,
+					Data_width: 32,
+					Blocks: SDRAMCacheCfg{
+						Count: 32,
+						Size:  "1kB",
 					},
 					At: SDRAMCacheAddr{
 						Bank:   3,
@@ -463,10 +488,10 @@ func Test_check_sdram_cache_lanes(t *testing.T) {
 				},
 				{
 					Name: "pal",
-					Cache: SDRAMCacheCfg{
-						Blocks:     8,
-						Size:       "1kB",
-						Data_width: 16,
+					Data_width: 16,
+					Blocks: SDRAMCacheCfg{
+						Count: 8,
+						Size:  "1kB",
 					},
 					At: SDRAMCacheAddr{
 						Length: "256kB",
@@ -495,11 +520,8 @@ func Test_check_sdram_cache_lanes_accepts_exact_bank_end(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
-				Cache: SDRAMCacheCfg{
-					Blocks:     1,
-					Size:       "1kB",
-					Data_width: 32,
-				},
+				Data_width: 32,
+				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "8kB",
@@ -518,11 +540,8 @@ func Test_check_sdram_cache_lanes_rejects_bank_overflow(t *testing.T) {
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
-				Cache: SDRAMCacheCfg{
-					Blocks:     1,
-					Size:       "1kB",
-					Data_width: 32,
-				},
+				Data_width: 32,
+				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "16kB",
@@ -541,11 +560,8 @@ func Test_check_sdram_cache_lanes_accepts_large_bank_overflow_case(t *testing.T)
 		SDRAM: SDRAMCfg{
 			Cache_lanes: []SDRAMCacheLine{{
 				Name: "tiles",
-				Cache: SDRAMCacheCfg{
-					Blocks:     1,
-					Size:       "1kB",
-					Data_width: 32,
-				},
+				Data_width: 32,
+				Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 				At: SDRAMCacheAddr{
 					Offset: "0x3FF000",
 					Length: "16kB",
@@ -571,11 +587,8 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     0,
-						Size:       "1kB",
-						Data_width: 32,
-					},
+					Data_width: 32,
+					Blocks: SDRAMCacheCfg{Count: 0, Size: "1kB"},
 					At: SDRAMCacheAddr{Length: "8MB"},
 				}},
 			},
@@ -583,11 +596,11 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 		{
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{
-					{Name: "a", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
-					{Name: "b", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
-					{Name: "c", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
-					{Name: "d", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
-					{Name: "e", Rw: true, Cache: SDRAMCacheCfg{Blocks: 1, Size: "1kB", Data_width: 16}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "a", Data_width: 16, Rw: true, Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "b", Data_width: 16, Rw: true, Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "c", Data_width: 16, Rw: true, Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "d", Data_width: 16, Rw: true, Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"}, At: SDRAMCacheAddr{Length: "8MB"}},
+					{Name: "e", Data_width: 16, Rw: true, Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"}, At: SDRAMCacheAddr{Length: "8MB"}},
 				},
 			},
 		},
@@ -595,11 +608,8 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "1kB",
-						Data_width: 24,
-					},
+					Data_width: 24,
+					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{Length: "8MB"},
 				}},
 			},
@@ -608,11 +618,8 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "1kB",
-						Data_width: 16,
-					},
+					Data_width: 16,
+					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "UNKNOWN",
 						Length: "8MB",
@@ -624,13 +631,10 @@ func Test_check_sdram_cache_lanes_rejects(t *testing.T) {
 			SDRAM: SDRAMCfg{
 				Cache_lanes: []SDRAMCacheLine{{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "1kB",
-						Data_width: 8,
-					},
-					At:             SDRAMCacheAddr{Length: "8MB"},
-					Sim_big_endian: true,
+					Data_width: 8,
+					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
+					At:        SDRAMCacheAddr{Length: "8MB"},
+					Simfile:   SDRAMCacheSimfile{Name: "tiles.bin", Big_endian: true},
 				}},
 			},
 		},
@@ -692,11 +696,8 @@ func Test_check_sdram_cache_lanes_accepts_hex_offset(t *testing.T) {
 			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "1kB",
-						Data_width: 16,
-					},
+					Data_width: 16,
+					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "0x100",
 						Length: "256kB",
@@ -717,11 +718,8 @@ func Test_check_sdram_cache_lanes_rejects_decimal_offset(t *testing.T) {
 			Cache_lanes: []SDRAMCacheLine{
 				{
 					Name: "tiles",
-					Cache: SDRAMCacheCfg{
-						Blocks:     1,
-						Size:       "1kB",
-						Data_width: 16,
-					},
+					Data_width: 16,
+					Blocks: SDRAMCacheCfg{Count: 1, Size: "1kB"},
 					At: SDRAMCacheAddr{
 						Offset: "256",
 						Length: "256kB",
@@ -1128,10 +1126,12 @@ func Test_game_sdram_template_passes_cache_endian_to_mux(t *testing.T) {
   big_endian: true
   cache-lanes:
     - name: tiles
-      cache: { blocks: 4, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 4, size: 1kB }
       at:    { bank: 3, offset: TILES, length: 4MB }
     - name: chars
-      cache: { blocks: 2, size: 1kB, data_width: 64 }
+      data_width: 64
+      blocks: { count: 2, size: 1kB }
       at:    { bank: 2, offset: CHARS, length: 2MB }
 `
 	var cfg MemConfig
@@ -1177,11 +1177,13 @@ func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: tiles
-      cache: { blocks: 1, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 3, offset: TILES, length: 4MB }
       rw: true
     - name: palette
-      cache: { blocks: 1, size: 1kB, data_width: 16 }
+      data_width: 16
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 1, offset: 0x100, length: 256kB }
 `
 	var cfg MemConfig
@@ -1228,11 +1230,13 @@ func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: tiles_wr
-      cache: { blocks: 1, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 3, offset: TILES, length: 4MB }
       rw: true
     - name: tiles
-      cache: { blocks: 1, size: 1kB, data_width: 16 }
+      data_width: 16
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 1, offset: 0x100, length: 256kB }
 `
 	var cfg MemConfig
@@ -1276,10 +1280,12 @@ func Test_mem_ports_template_uses_wide_cache_addr_ranges(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: line64
-      cache: { blocks: 2, size: 1kB, data_width: 64 }
+      data_width: 64
+      blocks: { count: 2, size: 1kB }
       at:    { bank: 2, offset: LINE64, length: 4MB }
     - name: line128
-      cache: { blocks: 1, size: 1kB, data_width: 128 }
+      data_width: 128
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 3, offset: LINE128, length: 4MB }
 `
 	var cfg MemConfig
@@ -1318,7 +1324,8 @@ func Test_check_sdram_rejects_sub_16b_cache_lanes(t *testing.T) {
 	sample := `sdram:
   cache-lanes:
     - name: tiny
-      cache: { blocks: 1, size: 8B, data_width: 32 }
+      data_width: 32
+      blocks: { count: 1, size: 8B }
       at:    { bank: 3, offset: TINY, length: 4MB }
 `
 	var cfg MemConfig
@@ -1341,10 +1348,12 @@ func Test_check_sdram_warns_about_big_endian_non32_cache_lanes(t *testing.T) {
   big_endian: true
   cache-lanes:
     - name: line32
-      cache: { blocks: 1, size: 1kB, data_width: 32 }
+      data_width: 32
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 3, offset: LINE32, length: 4MB }
     - name: line64
-      cache: { blocks: 1, size: 1kB, data_width: 64 }
+      data_width: 64
+      blocks: { count: 1, size: 1kB }
       at:    { bank: 2, offset: LINE64, length: 4MB }
 `
 	var cfg MemConfig

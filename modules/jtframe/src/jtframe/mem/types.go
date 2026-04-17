@@ -300,19 +300,23 @@ type SDRAMCacheLine struct {
 	When           []string       `yaml:"when"`
 	Unless         []string       `yaml:"unless"`
 	Name           string         `yaml:"name"`
-	Cache          SDRAMCacheCfg  `yaml:"cache"`
+	Data_width     int            `yaml:"data_width"`
+	Blocks         SDRAMCacheCfg  `yaml:"blocks"`
 	At             SDRAMCacheAddr `yaml:"at"`
 	Rw             bool           `yaml:"rw"`
-	Simfile        string         `yaml:"simfile"`
-	Sim_big_endian bool           `yaml:"sim_big_endian"`
+	Simfile        SDRAMCacheSimfile `yaml:"simfile"`
 	Total          int
 }
 
 type SDRAMCacheCfg struct {
-	Blocks     int    `yaml:"blocks"`
+	Count      int    `yaml:"count"`
 	Size       string `yaml:"size"`
-	Data_width int    `yaml:"data_width"`
 	Size_bytes int
+}
+
+type SDRAMCacheSimfile struct {
+	Name       string `yaml:"name"`
+	Big_endian bool   `yaml:"big_endian"`
 }
 
 type SDRAMCacheAddr struct {
@@ -328,12 +332,12 @@ func (line *SDRAMCacheLine) UnmarshalYAML(unmarshal func(interface{}) error) err
 	type raw_line struct {
 		When           []string       `yaml:"when"`
 		Unless         []string       `yaml:"unless"`
-		Cache          SDRAMCacheCfg  `yaml:"cache"`
-		At             SDRAMCacheAddr `yaml:"at"`
 		Name           string         `yaml:"name"`
+		Data_width     int            `yaml:"data_width"`
+		Blocks         SDRAMCacheCfg  `yaml:"blocks"`
+		At             SDRAMCacheAddr `yaml:"at"`
 		Rw             bool           `yaml:"rw"`
-		Simfile        string         `yaml:"simfile"`
-		Sim_big_endian bool           `yaml:"sim_big_endian"`
+		Simfile        SDRAMCacheSimfile `yaml:"simfile"`
 	}
 	var raw_map map[string]interface{}
 	if err := unmarshal(&raw_map); err != nil {
@@ -345,21 +349,71 @@ func (line *SDRAMCacheLine) UnmarshalYAML(unmarshal func(interface{}) error) err
 	}
 	line.When = aux.When
 	line.Unless = aux.Unless
-	line.Cache = aux.Cache
-	line.At = aux.At
 	line.Name = aux.Name
+	line.Data_width = aux.Data_width
+	line.Blocks = aux.Blocks
+	line.At = aux.At
 	line.Rw = aux.Rw
 	line.Simfile = aux.Simfile
-	line.Sim_big_endian = aux.Sim_big_endian
 	for key := range raw_map {
 		switch key {
-		case "name", "when", "unless", "cache", "at", "rw", "simfile", "sim_big_endian":
+		case "name", "when", "unless", "data_width", "blocks", "at", "rw", "simfile":
 		default:
 			return fmt.Errorf("Unexpected field %s in cache line", key)
 		}
 	}
 	if line.Name == "" {
 		return fmt.Errorf("cache line entries must a name")
+	}
+	return nil
+}
+
+func (cfg *SDRAMCacheCfg) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type raw_cfg struct {
+		Count int    `yaml:"count"`
+		Size  string `yaml:"size"`
+	}
+	var raw_map map[string]interface{}
+	if err := unmarshal(&raw_map); err != nil {
+		return err
+	}
+	var aux raw_cfg
+	if err := unmarshal(&aux); err != nil {
+		return err
+	}
+	cfg.Count = aux.Count
+	cfg.Size = aux.Size
+	for key := range raw_map {
+		switch key {
+		case "count", "size":
+		default:
+			return fmt.Errorf("Unexpected field %s in cache blocks", key)
+		}
+	}
+	return nil
+}
+
+func (sim *SDRAMCacheSimfile) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type raw_sim struct {
+		Name       string `yaml:"name"`
+		Big_endian bool   `yaml:"big_endian"`
+	}
+	var raw_map map[string]interface{}
+	if err := unmarshal(&raw_map); err != nil {
+		return err
+	}
+	var aux raw_sim
+	if err := unmarshal(&aux); err != nil {
+		return err
+	}
+	sim.Name = aux.Name
+	sim.Big_endian = aux.Big_endian
+	for key := range raw_map {
+		switch key {
+		case "name", "big_endian":
+		default:
+			return fmt.Errorf("Unexpected field %s in cache simfile", key)
+		}
 	}
 	return nil
 }

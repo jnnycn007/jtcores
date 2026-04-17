@@ -115,7 +115,7 @@ func (bus AudioCh) Get_aw() int        { return bus.Data_width }
 func (bus SDRAMBus) Get_dw() int       { return bus.Data_width }
 func (bus BRAMBus) Get_dw() int        { return bus.Data_width }
 func (bus AudioCh) Get_dw() int        { return bus.Data_width }
-func (bus SDRAMCacheLine) Get_dw() int { return bus.Cache.Data_width }
+func (bus SDRAMCacheLine) Get_dw() int { return bus.Data_width }
 func (bus SDRAMCacheLine) Get_aw() int { return int(math.Log2(float64(bus.At.Length_bytes))) }
 func (bus SDRAMBus) Get_dname() string { return bus.Name + "_data" }
 func (bus BRAMBus) Get_dname() string {
@@ -134,7 +134,7 @@ func (bus SDRAMCacheLine) Is_wr() bool         { return bus.Rw }
 func (bus SDRAMBus) Is_nbits(n int) bool       { return bus.Data_width == n }
 func (bus BRAMBus) Is_nbits(n int) bool        { return bus.Data_width == n }
 func (bus AudioCh) Is_nbits(n int) bool        { return bus.Data_width == n }
-func (bus SDRAMCacheLine) Is_nbits(n int) bool { return bus.Cache.Data_width == n }
+func (bus SDRAMCacheLine) Is_nbits(n int) bool { return bus.Data_width == n }
 
 func addr_range(bus Bus) string {
 	return fmt.Sprintf("[%2d:%d]", bus.Get_aw()-1, bus.Get_dw()>>4)
@@ -174,7 +174,7 @@ func cache_data_aw0(dw int) int {
 }
 
 func cache_line_addr_range(line SDRAMCacheLine) string {
-	aw0 := cache_data_aw0(line.Cache.Data_width)
+	aw0 := cache_data_aw0(line.Data_width)
 	return fmt.Sprintf("[%2d:%d]", cache_line_aw(line)-1, aw0)
 }
 
@@ -706,22 +706,22 @@ func (cfg *MemConfig) parse_cache_lanes(param_values map[string]string) (total_c
 		if line.Rw && k >= 4 {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s enables rw, but only the first four cache-lanes may use rw", line.Name)
 		}
-		if line.Cache.Blocks == 0 {
-			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s must define cache.blocks and it cannot be zero", line.Name)
+		if line.Blocks.Count == 0 {
+			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s must define blocks.count and it cannot be zero", line.Name)
 		}
-		switch line.Cache.Data_width {
+		switch line.Data_width {
 		case 8, 16, 32, 64, 128:
 		default:
-			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s uses unsupported data_width %d", line.Name, line.Cache.Data_width)
+			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s uses unsupported data_width %d", line.Name, line.Data_width)
 		}
-		if line.Sim_big_endian && line.Cache.Data_width == 8 {
-			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s cannot use sim_big_endian with 8-bit data width", line.Name)
+		if line.Simfile.Big_endian && line.Data_width == 8 {
+			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s cannot use simfile.big_endian with 8-bit data width", line.Name)
 		}
-		if Verbose && cfg.SDRAM.Big_endian && line.Cache.Data_width != 32 {
+		if Verbose && cfg.SDRAM.Big_endian && line.Data_width != 32 {
 			fmt.Printf("WARNING: sdram.big_endian only applies to 32-bit cache-lanes; %s uses %d bits and will force little-endian packing\n",
-				line.Name, line.Cache.Data_width)
+				line.Name, line.Data_width)
 		}
-		size_bytes, e := parse_memory_size(line.Cache.Size)
+		size_bytes, e := parse_memory_size(line.Blocks.Size)
 		if e != nil {
 			return 0, 0, fmt.Errorf("jtframe mem: invalid cache size for %s: %w", line.Name, e)
 		}
@@ -731,7 +731,7 @@ func (cfg *MemConfig) parse_cache_lanes(param_values map[string]string) (total_c
 		if size_bytes < 16 {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s uses a cache size of %d bytes, which must be at least 16", line.Name, size_bytes)
 		}
-		line.Cache.Size_bytes = size_bytes
+		line.Blocks.Size_bytes = size_bytes
 		if size_bytes > max_cache_size {
 			max_cache_size = size_bytes
 		}
@@ -756,7 +756,7 @@ func (cfg *MemConfig) parse_cache_lanes(param_values map[string]string) (total_c
 		if offset_bytes+int64(length_bytes) > bank_size_bytes {
 			return 0, 0, fmt.Errorf("jtframe mem: cache-lane %s exceeds bank %d size (%d bytes offset + %d bytes length > %d bytes)", line.Name, line.At.Bank, offset_bytes, length_bytes, bank_size_bytes)
 		}
-		line.Total = line.Cache.Blocks * size_bytes
+		line.Total = line.Blocks.Count * size_bytes
 		total_cache += line.Total
 	}
 	return total_cache, max_cache_size, nil
@@ -775,8 +775,8 @@ func (cfg *MemConfig) report_cache_lanes(total_cache int) {
 	for _, line := range cfg.SDRAM.Cache_lanes {
 		fmt.Printf("%-12s %8d %8s %10s\n",
 			line.Name,
-			line.Cache.Blocks,
-			format_memory_size(line.Cache.Size_bytes),
+			line.Blocks.Count,
+			format_memory_size(line.Blocks.Size_bytes),
 			format_memory_size(line.Total))
 	}
 	fmt.Printf("%-12s %8s %8s %10s\n", "TOTAL", "", "", format_memory_size(total_cache))

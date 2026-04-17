@@ -68,12 +68,12 @@ wire [ 1:0] {{.Name}}_dsn;
 {{- end}}
 {{- range .SDRAM.Cache_lanes}}
 wire {{ cache_line_addr_range . }} {{.Name}}_addr;
-wire [{{ sub .Cache.Data_width 1 }}:0] {{.Name}}_data;
+wire [{{ sub .Data_width 1 }}:0] {{.Name}}_data;
 wire        {{.Name}}_cs, {{.Name}}_ok;
 {{- if .Rw }}
 wire        {{.Name}}_we;
-wire [{{ sub .Cache.Data_width 1 }}:0] {{.Name}}_din;
-wire [{{ sub (byte_en_width .Cache.Data_width) 1 }}:0] {{.Name}}_dsn;
+wire [{{ sub .Data_width 1 }}:0] {{.Name}}_din;
+wire [{{ sub (byte_en_width .Data_width) 1 }}:0] {{.Name}}_dsn;
 {{- end}}
 {{- end}}
 wire        prom_we, header;
@@ -358,11 +358,11 @@ jtframe_headerbyte #(.AW(6)) u_pcbid(
 jtframe_cache_mux #(
     .SDRAM_AW ( SDRAMW ),
     .ENDIAN   ( 0 ){{- range $index, $line := .SDRAM.Cache_lanes }},
-    .ENDIAN{{$index}} ( {{if and $.SDRAM.Big_endian (eq $line.Cache.Data_width 32)}}1{{else}}0{{end}} ),
+    .ENDIAN{{$index}} ( {{if and $.SDRAM.Big_endian (eq $line.Data_width 32)}}1{{else}}0{{end}} ),
     .AW{{$index}}      ( {{ cache_line_aw $line }} ),
-    .BLOCKS{{$index}}  ( {{ $line.Cache.Blocks }} ),
-    .BLKSIZE{{$index}} ( {{ $line.Cache.Size_bytes }} ),
-    .DW{{$index}}      ( {{ printf "%2d" $line.Cache.Data_width }} ),
+    .BLOCKS{{$index}}  ( {{ $line.Blocks.Count }} ),
+    .BLKSIZE{{$index}} ( {{ $line.Blocks.Size_bytes }} ),
+    .DW{{$index}}      ( {{ printf "%2d" $line.Data_width }} ),
     .BA{{$index}}      ( {{ $line.At.Bank }} ),
     .OFFSET{{$index}}  ( {{ if $line.At.Offset }}{{ $line.At.Offset }}{{ else }}0{{ end }} ){{- end }}
 ) u_cache(
@@ -374,8 +374,8 @@ jtframe_cache_mux #(
     .rd{{$index}}   ( {{ $line.Name }}_cs   ),
     {{- if lt $index 4 }}
     .wr{{$index}}   ( {{ if $line.Rw }}{{ $line.Name }}_we{{ else }}1'b0{{ end }} ),
-    .din{{$index}}  ( {{ if $line.Rw }}{{ $line.Name }}_din{{ else }}{{ printf "%d'd0" $line.Cache.Data_width }}{{ end }} ),
-    .wdsn{{$index}} ( {{ if $line.Rw }}{{ $line.Name }}_dsn{{ else }}{{ printf "%d'd0" (byte_en_width $line.Cache.Data_width) }}{{ end }} ),
+    .din{{$index}}  ( {{ if $line.Rw }}{{ $line.Name }}_din{{ else }}{{ printf "%d'd0" $line.Data_width }}{{ end }} ),
+    .wdsn{{$index}} ( {{ if $line.Rw }}{{ $line.Name }}_dsn{{ else }}{{ printf "%d'd0" (byte_en_width $line.Data_width) }}{{ end }} ),
     {{- end}}
     .ok{{$index}}   ( {{ $line.Name }}_ok   ),
 {{- end}}
