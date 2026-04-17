@@ -152,6 +152,7 @@ wire            wr_rise = wr & ~wr_l;
 wire            new_rd  = rd_rise;
 wire            new_wr  = wr_rise & ~rd_rise;
 wire            new_req = new_rd | new_wr;
+wire            fill_stream_dok = ext_dok && !(DW >= 64 && ext_dst);
 
 wire [UW-1:0]   req_uaddr_now = addr;
 wire [TAGW-1:0] req_tag_now   = addr_tag(req_uaddr_now);
@@ -459,11 +460,13 @@ always @* begin
             tag_update_tag_n   = req_tag_l;
         end
         S_FILL_STREAM: begin
-            if( ext_dok && !fill_tail_seen ) begin
+            // Wide cache lines need to ignore the `dst`-flagged priming cycle
+            // before the first stable halfword reaches the refill datapath.
+            if( fill_stream_dok && !fill_tail_seen ) begin
                 stream_we    = fill_write_mask(stream_word);
                 stream_wdata = fill_write_data(ext_din, stream_word);
             end
-            if( ext_dok && ext_rdy ) begin
+            if( fill_stream_dok && ext_rdy ) begin
                 tag_update_en      = 1'b1;
                 tag_update_way_n   = way_l;
                 tag_update_valid_n = 1'b1;
@@ -638,7 +641,7 @@ always @(posedge clk) begin
                 end
             end
             S_FILL_STREAM: begin
-                if( ext_dok ) begin
+                if( fill_stream_dok ) begin
                     if( ext_rdy ) begin
                         stream_word       <= {WW{1'b0}};
                         fill_tail_seen    <= 1'b0;
