@@ -225,8 +225,8 @@ initial begin
     clk = 1'b0;
     clk_sdram = 1'b0;
     forever begin
-        #(CLK_PERIOD_NS/2.0) clk = ~clk;
-        #1 clk_sdram = clk;
+        #(CLK_PERIOD_NS/2.0) clk_sdram = ~clk_sdram;
+        #5 clk = clk_sdram;
     end
 end
 

@@ -129,7 +129,7 @@ localparam [4:0] S_INIT_CLEAR    = 5'd0,
                  S_FILL_WB_WAIT  = 5'd12,
                  S_FILL_WB_PRIME = 5'd13;
 
-reg              fill_after_wb;
+reg              fill_after_wb, fill_wb_prime_wait;
 reg              init_req_pending;
 reg              rd_l, wr_l;
 reg              req_wr_l;
@@ -152,7 +152,7 @@ wire            wr_rise = wr & ~wr_l;
 wire            new_rd  = rd_rise;
 wire            new_wr  = wr_rise & ~rd_rise;
 wire            new_req = new_rd | new_wr;
-wire            fill_stream_dok = ext_dok && !(DW >= 64 && ext_dst);
+wire            fill_stream_dok = ext_dok;
 
 wire [UW-1:0]   req_uaddr_now = addr;
 wire [TAGW-1:0] req_tag_now   = addr_tag(req_uaddr_now);
@@ -436,9 +436,11 @@ always @* begin
             end
         end
         S_FILL_WB_PRIME: begin
-            stream_we    = fill_write_mask({WW{1'b0}});
-            stream_wdata = fill_write_data(ext_din, {WW{1'b0}});
-            if( ext_rdy || LAST_WORD == {WW{1'b0}} ) begin
+            if( !fill_wb_prime_wait ) begin
+                stream_we    = fill_write_mask({WW{1'b0}});
+                stream_wdata = fill_write_data(ext_din, {WW{1'b0}});
+            end
+            if( !fill_wb_prime_wait && (ext_rdy || LAST_WORD == {WW{1'b0}}) ) begin
                 tag_update_en      = 1'b1;
                 tag_update_way_n   = way_l;
                 tag_update_valid_n = 1'b1;
@@ -460,8 +462,6 @@ always @* begin
             tag_update_tag_n   = req_tag_l;
         end
         S_FILL_STREAM: begin
-            // Wide cache lines need to ignore the `dst`-flagged priming cycle
-            // before the first stable halfword reaches the refill datapath.
             if( fill_stream_dok && !fill_tail_seen ) begin
                 stream_we    = fill_write_mask(stream_word);
                 stream_wdata = fill_write_data(ext_din, stream_word);
@@ -484,6 +484,7 @@ always @(posedge clk) begin
         st                <= S_INIT_CLEAR;
         fill_tail_seen    <= 1'b0;
         fill_after_wb     <= 1'b0;
+        fill_wb_prime_wait<= 1'b0;
         init_req_pending  <= 1'b0;
         rd_l              <= 1'b0;
         wr_l              <= 1'b0;
@@ -627,17 +628,22 @@ always @(posedge clk) begin
                 end
             end
             S_FILL_WB_WAIT: begin
+                fill_wb_prime_wait <= 1'b1;
                 st <= S_FILL_WB_PRIME;
             end
             S_FILL_WB_PRIME: begin
-                fill_after_wb <= 1'b0;
-                if( ext_rdy || LAST_WORD == {WW{1'b0}} ) begin
-                    stream_word       <= {WW{1'b0}};
-                    fill_tail_seen    <= 1'b0;
-                    st                <= S_POSTFILL_WAIT;
+                if( fill_wb_prime_wait ) begin
+                    fill_wb_prime_wait <= 1'b0;
                 end else begin
-                    stream_word <= WW'(1);
-                    st          <= S_FILL_STREAM;
+                    fill_after_wb <= 1'b0;
+                    if( ext_rdy || LAST_WORD == {WW{1'b0}} ) begin
+                        stream_word       <= {WW{1'b0}};
+                        fill_tail_seen    <= 1'b0;
+                        st                <= S_POSTFILL_WAIT;
+                    end else begin
+                        stream_word <= WW'(1);
+                        st          <= S_FILL_STREAM;
+                    end
                 end
             end
             S_FILL_STREAM: begin
