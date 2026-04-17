@@ -394,7 +394,7 @@ func parseSimSize(text string) (int, error) {
 	return size_value * multiplier, nil
 }
 
-func applySimFile(each sim_file_entry) error {
+func applySimFile(each sim_file_entry) (err error) {
 	data, err := os.ReadFile(each.path)
 	if err != nil {
 		return fmt.Errorf("cannot read simfile %s for %s %s: %w", each.path, each.kind, each.name, err)
@@ -402,7 +402,8 @@ func applySimFile(each sim_file_entry) error {
 	if len(data) != each.length {
 		return fmt.Errorf("simfile %s for %s %s must be %d bytes but is %d", each.path, each.kind, each.name, each.length, len(data))
 	}
-	if err := swapSimFileData(data, each.data_width, each.big_endian); err != nil {
+	byte_swapped := false
+	if byte_swapped, err = swapSimFileData(data, each.data_width, each.big_endian); err != nil {
 		return fmt.Errorf("cannot prepare simfile %s for %s %s: %w", each.path, each.kind, each.name, err)
 	}
 	name := fmt.Sprintf("sdram_bank%d.bin", each.bank)
@@ -415,28 +416,32 @@ func applySimFile(each sim_file_entry) error {
 		return err
 	}
 	if verbose {
-		fmt.Printf("Applied simfile %-16s to bank=%d offset=%X length=%X\n", each.path, each.bank, each.offset, each.length)
+		fmt.Printf("Applied simfile %-16s to bank=%d offset=%X length=%X", each.path, each.bank, each.offset, each.length)
+		if byte_swapped {
+			fmt.Printf(" (bytes swapped)")
+		}
+		fmt.Printf("\n")
 	}
 	return nil
 }
 
-func swapSimFileData(data []byte, data_width int, big_endian bool) error {
+func swapSimFileData(data []byte, data_width int, big_endian bool) (bool,error) {
 	if !big_endian {
-		return nil
+		return false,nil
 	}
 	word_bytes := data_width >> 3
 	if word_bytes <= 1 {
-		return fmt.Errorf("simfile.big_endian requires 16-bit or 32-bit data width")
+		return false,fmt.Errorf("simfile.big_endian requires 16-bit or 32-bit data width")
 	}
 	if (len(data) % word_bytes) != 0 {
-		return fmt.Errorf("file length %d is not divisible by %d-byte words", len(data), word_bytes)
+		return false,fmt.Errorf("file length %d is not divisible by %d-byte words", len(data), word_bytes)
 	}
 	for k := 0; k < len(data); k += word_bytes {
 		for a, b := k, k+word_bytes-1; a < b; a, b = a+1, b-1 {
 			data[a], data[b] = data[b], data[a]
 		}
 	}
-	return nil
+	return true,nil
 }
 
 func readBankFile(name string) ([]byte, error) {
