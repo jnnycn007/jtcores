@@ -1,0 +1,176 @@
+.TH JTFRAME-MRA 1 "April 2026" "JTFRAME" "User Commands"
+.SH NAME
+jtframe-mra \- generate MRA files from \fBmame2mra.toml\fR
+.SH SYNOPSIS
+.B jtframe mra
+.RI "<core-name core-name...>"
+.br
+.B jtframe mra
+.B \-\-reduce
+.RI "<path-to-mame.xml> [flags]"
+.SH DESCRIPTION
+\fBjtframe mra\fR
+parses a core's
+\fBcfg/mame2mra.toml\fR
+and
+\fBcfg/macros.def\fR
+to generate MiSTer MRA files, Pocket JSON metadata, and merged
+\fB.rom\fR
+images.
+It is the ROM-description stage used by JTFRAME before simulation and release
+packaging.
+.PP
+The normal XML input is
+\fB$JTROOT/doc/mame.xml\fR.
+If
+\fB$JTROOT/doc/custom.xml\fR
+exists, it is parsed afterwards and may override machines with the same name.
+When
+\fB--reduce\fR
+is used, the command reads the supplied XML file and writes back a reduced
+machine list suitable for keeping under
+\fB$JTROOT/doc/\fR.
+.PP
+Output is written either to
+\fB$JTROOT/release/\fR
+or to
+\fB$JTBIN\fR
+when
+\fB--git\fR
+is selected.
+.SS Workflow
+.IP \[bu] 2
+Load and expand
+\fBcfg/macros.def\fR
+before interpreting the TOML.
+.IP \[bu] 2
+Read machine data from
+\fBmame.xml\fR
+and the optional
+\fBcustom.xml\fR
+overlay.
+.IP \[bu] 2
+Apply the rules in
+\fBmame2mra.toml\fR
+to choose games, rename or edit DIP switches, generate headers, and build the
+final ROM layout.
+.IP \[bu] 2
+Emit MRA and, unless disabled, Pocket JSON and merged
+\fB.rom\fR
+files.
+.SS Main TOML Sections
+.TP
+.B [global]
+Global defaults such as fixed orientation when MAME metadata is not reliable.
+.TP
+.B [parse]
+Select which MAME source files, parents, devices, or machine names are kept.
+This section also handles debug-only machines, bootleg filtering, and promoted
+main set names.
+.TP
+.B [Pocket]
+Add Pocket-specific metadata such as extra display modes.
+.TP
+.B [cheat]
+Associate per-game or shared cheat files and optionally disable cheat output.
+.TP
+.B [dipsw]
+Rename, delete, offset, or extend DIP switch entries and provide explicit
+defaults when multiple settings share the same bits.
+.TP
+.B [header]
+Describe JTFRAME download headers, PCB IDs, generated header registers, region
+offset tables, and frame trimming metadata.
+.TP
+.B [buttons]
+Override button labels and dial behavior.
+.TP
+.B [ROM]
+Describe which MAME regions become the merged
+\fB.rom\fR
+image, the order used in the MRA, NVRAM defaults, split rules, patches, and
+allowed cartridge extensions.
+.PP
+A small example:
+.RS
+.nf
+[parse]
+sourcefile = [ "mamefile.cpp" ]
+parents = [
+  { name = "parentset", description = "Parent Description" }
+]
+
+[ROM]
+order = [ "maincpu", "soundcpu", "gfx1" ]
+.fi
+.RE
+.SH FLAGS
+.TP
+.B \-\-alt
+Generate only alternative MRA files.
+.TP
+.BI "\-\-buttons " names
+Override the button labels used by the game, up to six buttons.
+.TP
+.B \-g, \-\-git
+Save files to
+\fB$JTBIN\fR
+instead of the release folder.
+.TP
+.B \-h, \-\-help
+Show the short command help.
+.TP
+.B \-o, \-\-mainonly
+Parse only the main version of each game.
+.TP
+.B \-m, \-\-md5
+Calculate MD5 sums even when the ROM is not saved.
+.TP
+.B \-\-names
+Print the title of each supported game.
+.TP
+.B \-\-nodbg
+Skip machines marked as debug-only in the TOML.
+.TP
+.BI "\-\-path " dir
+Set the path to MAME zip files.
+.TP
+.B \-r, \-\-reduce
+Reduce the XML file to the entries required by the selected cores.
+.TP
+.B \-\-rm
+Delete the release and ROM folders in
+\fB$JTROOT\fR
+before proceeding.
+.TP
+.BI "\-\-setname " name
+Generate output only for the specified set name.
+.TP
+.B \-p, \-\-show_platform
+Print the platform name and quit.
+.TP
+.B \-s, \-\-skipMRA
+Do not generate MRA files.
+.TP
+.B \-\-skipPocket
+Do not generate Pocket JSON files.
+.TP
+.B \-n, \-\-skipROM
+Do not generate merged
+\fB.rom\fR
+files.
+.TP
+.BI "\-\-url " text
+Set the author URL used in generated metadata.
+.TP
+.BI "\-\-year " text
+Override the year string used in the MRA comment.
+.TP
+.B \-v, \-\-verbose
+Enable verbose output.
+.SH SEE ALSO
+.BR jtframe (1),
+.BR jtframe-cfgstr (1),
+.BR jtframe-mem (1),
+.BR jtutil-mra (1),
+.BR jtsim (1)

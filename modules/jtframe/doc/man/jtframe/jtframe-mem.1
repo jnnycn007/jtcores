@@ -1,0 +1,196 @@
+.TH JTFRAME-MEM 1 "April 2026" "JTFRAME" "User Commands"
+.SH NAME
+jtframe-mem \- generate RTL files from a core \fBmem.yaml\fR
+.SH SYNOPSIS
+.B jtframe mem
+.RI "<core-name> [flags]"
+.SH DESCRIPTION
+\fBjtframe mem\fR
+parses
+\fBcores/<corename>/cfg/mem.yaml\fR
+and generates the memory-related RTL and include files required by synthesis
+and simulation.
+It is the bridge between the declarative memory description in the core
+configuration and the concrete files consumed later by
+\fBjtframe files\fR,
+\fBjtcore\fR,
+and
+\fBjtsim\fR.
+.PP
+Generated files are normally written under
+\fBcores/<corename>/target/<target>/\fR.
+With
+\fB--local\fR,
+output is written to the local verification or working folder instead.
+.PP
+The selected target matters because
+\fBjtframe mem\fR
+also consumes the target-side framework files already present under
+\fB$JTFRAME/target/<target>/\fR.
+.SS Top-Level Keys
+.TP
+.B include
+Import additional YAML fragments, either by naming another core or by pointing
+at a specific file.
+.RS
+.nf
+include:
+  \- game: cop
+  \- file: ../../cop/cfg/mem.yaml
+.fi
+.RE
+.TP
+.B params
+Define named values referenced later from SDRAM offsets or other generated
+logic.
+.TP
+.B download
+Describe address or data transforms applied while ROM data is downloaded.
+The
+\fBpre_addr\fR,
+\fBpost_addr\fR,
+and
+\fBpost_data\fR
+switches route generated signals through extra game-module ports.
+\fBnoswab\fR
+disables the default byte swapping and is usually better handled in the MRA
+flow instead.
+.TP
+.B ports
+Add generated ports to the game module.
+These are typically used together with custom download transforms or external
+memory interfaces.
+.TP
+.B game
+Instantiate a game module name other than the default
+\fB<core>_game\fR
+or
+\fB<core>_game_sdram\fR.
+.TP
+.B clocks
+Generate clock-enable signals from a base clock.
+Each entry can emit one or more
+\fBcen\fR
+signals and may gate them with core readiness signals.
+.TP
+.B audio
+Describe the analog summing and filtering model used to generate JTFRAME audio
+support files.
+This section supports a global RC stage, per-channel RC or FIR filters, board
+variants under
+\fBpcb\fR,
+and channel metadata such as
+\fBstereo\fR,
+\fBunsigned\fR,
+and
+\fBdata_width\fR.
+.TP
+.B sdram
+Describe external SDRAM layout.
+Use either
+\fBbanks\fR
+or
+\fBcache-lanes\fR,
+but not both at the same time.
+Bank offsets are expressed in 16-bit SDRAM words, not bytes, and match the
+generated
+\fBSLOT*_OFFSET\fR
+semantics.
+.TP
+.B bram
+Describe on-chip RAM, ROM, or PROM blocks.
+Entries may include IOCTL save or restore metadata, simulation file overlays,
+and optional second ports.
+.SS Audio Notes
+When both YM3012 outputs are tied into the same summing node, use the
+resistance of one output as
+\fBrsum\fR.
+If only one YM3012 output is connected, set the channel
+\fBpre\fR
+gain to
+\fB0.5\fR.
+For K007232, JTFRAME can model two separate channels or the mixed output; the
+mixed path can clip because the original board uses separate DAC paths.
+.SS SDRAM Notes
+.IP \[bu] 2
+\fBdata_width\fR
+in bank buses may be 8, 16, or 32 bits.
+.IP \[bu] 2
+\fBcache_size\fR
+selects between the standard ROM request cache and the data-serving cache.
+.IP \[bu] 2
+\fBgfx_sort\fR
+and
+\fBgfx_sort_en\fR
+describe the address bit reordering used for graphics-oriented downloads.
+.IP \[bu] 2
+\fBsimfile\fR
+metadata is consumed only by
+\fBjtutil sdram --sim\fR
+to patch generated SDRAM bank files for simulation.
+.IP \[bu] 2
+Top-level
+\fBsdram.big_endian\fR
+applies only to
+\fBcache-lanes\fR.
+Per-\fBsimfile\fR
+\fBbig_endian\fR
+applies only to 16-bit and 32-bit simulation loads.
+.PP
+A short SDRAM example:
+.RS
+.nf
+sdram:
+  banks:
+    \- buses:
+        \- name: tiles
+          addr_width: 18
+          data_width: 16
+          offset: GFXBASE
+          cache_size: 4
+          simfile: { name: tiles.bin }
+.fi
+.RE
+.SS BRAM Notes
+BRAM entries can describe regular RAM, ROM downloaded into BRAM, or PROM data
+mirroring the order expected by the MRA.
+Optional
+\fBioctl\fR
+metadata can generate save or restore helpers, and
+\fBdual_port\fR
+adds a second interface when the block must be shared.
+.PP
+Use
+\fB--inc\fR
+to force generation of
+\fBmem_ports.inc\fR
+even when the current target flow would not otherwise need it.
+.SH FLAGS
+.TP
+.B \-h, \-\-help
+Show the short command help.
+.TP
+.B \-i, \-\-inc
+Always generate
+\fBmem_ports.inc\fR.
+.TP
+.B \-l, \-\-local
+Write generated files to the local folder instead of the target folder.
+.TP
+.B \-\-nodbg
+Enable release-mode parsing by defining
+\fBJTFRAME_RELEASE\fR.
+.TP
+.BI "\-t, \-\-target " name
+Select the target platform.
+The default is
+\fBmist\fR.
+.TP
+.B \-v, \-\-verbose
+Enable verbose output.
+.SH SEE ALSO
+.BR jtframe (1),
+.BR jtframe-files (1),
+.BR jtframe-mra (1),
+.BR jtutil-sdram (1),
+.BR jtsim (1)
