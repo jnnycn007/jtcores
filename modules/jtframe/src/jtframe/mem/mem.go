@@ -660,7 +660,7 @@ func (cfg *MemConfig) check_cache_lanes() error {
 	if err != nil {
 		return err
 	}
-	if total_cache >= 512*1024 {
+	if total_cache > 512*1024 {
 		return fmt.Errorf("jtframe mem: cache-lanes use %d bytes of BRAM, which must stay below 512kB", total_cache)
 	}
 	burst_len := max_cache_size
