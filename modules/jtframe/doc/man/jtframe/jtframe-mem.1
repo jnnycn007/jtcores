@@ -136,6 +136,21 @@ applies only to
 Per-\fBsimfile\fR
 \fBbig_endian\fR
 applies only to 16-bit and 32-bit simulation loads.
+.IP \[bu] 2
+\fBcache-lanes[].at\fR
+is optional.
+With
+\fBat\fR,
+the lane stays inside one SDRAM bank using
+\fBbank\fR,
+\fBoffset\fR,
+and
+\fBlength\fR.
+Without
+\fBat\fR,
+the lane spans the full SDRAM space and
+\fBjtframe_cache_mux\fR
+derives the bank from the top two half-word address bits.
 .PP
 A short SDRAM example:
 .RS

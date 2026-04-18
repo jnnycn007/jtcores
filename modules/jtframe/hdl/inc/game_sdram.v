@@ -359,12 +359,13 @@ jtframe_cache_mux #(
     .SDRAM_AW ( SDRAMW ),
     .ENDIAN   ( 0 ){{- range $index, $line := .SDRAM.Cache_lanes }},
     .ENDIAN{{$index}} ( {{if and $.SDRAM.Big_endian (eq $line.Data_width 32)}}1{{else}}0{{end}} ),
+    .FULL{{$index}}    ( {{if $line.Full_range}}1{{else}}0{{end}} ),
     .AW{{$index}}      ( {{ cache_line_aw $line }} ),
     .BLOCKS{{$index}}  ( {{ $line.Blocks.Count }} ),
     .BLKSIZE{{$index}} ( {{ $line.Blocks.Size_bytes }} ),
     .DW{{$index}}      ( {{ printf "%2d" $line.Data_width }} ),
-    .BA{{$index}}      ( {{ $line.At.Bank }} ),
-    .OFFSET{{$index}}  ( {{ if $line.At.Offset }}{{ $line.At.Offset }}{{ else }}0{{ end }} ){{- end }}
+    .BA{{$index}}      ( {{ if $line.Full_range }}0{{ else }}{{ $line.At.Bank }}{{ end }} ),
+    .OFFSET{{$index}}  ( {{ if and (not $line.Full_range) $line.At.Offset }}{{ $line.At.Offset }}{{ else }}0{{ end }} ){{- end }}
 ) u_cache(
     .rst       ( rst      ),
     .clk       ( clk      ),

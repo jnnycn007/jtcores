@@ -304,6 +304,8 @@ type SDRAMCacheLine struct {
 	Rw         bool              `yaml:"rw"`
 	Simfile    SDRAMCacheSimfile `yaml:"simfile"`
 	Total      int
+	Span_bytes int
+	Full_range bool
 }
 
 type SDRAMCacheCfg struct {
@@ -334,6 +336,7 @@ type SDRAMCacheAddr struct {
 	Offset       string `yaml:"offset"`
 	Length       string `yaml:"length"`
 	Length_bytes int
+	Defined      bool
 }
 
 // This function checks the syntax in the mem.yaml file and it applies the
@@ -614,6 +617,7 @@ func (addr *SDRAMCacheAddr) UnmarshalYAML(unmarshal func(interface{}) error) err
 	if err := unmarshal(&aux); err != nil {
 		return err
 	}
+	addr.Defined = true
 	addr.Bank = aux.Bank
 	addr.Offset = aux.Offset
 	addr.Length = aux.Length

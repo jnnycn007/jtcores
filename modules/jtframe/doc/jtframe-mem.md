@@ -140,14 +140,21 @@ sdram:
         offset: TILES
         length: 8MB
       simfile: { name: tilechar.bin, big_endian: true, data_type: u32 }
-      # Cache lines are bank-relative and use 16-bit SDRAM word units for offset
+      # Cache lines with at: are bank-relative and use 16-bit SDRAM word units for offset
       # offset must be either a parameter name or an explicit hexadecimal value
-      # length is the address space exposed to the cache client
+      # length is the address space exposed to the cache client inside that bank
+      # at: is optional; if omitted the cache lane spans the full SDRAM space
+      # full-space lanes use 24-bit word addresses for 32MB SDRAM and 25-bit word addresses for 64MB SDRAM
       # cache-lanes generate jtframe_cache/jtframe_cache_mux based SDRAM access
+      # the cache mux derives the SDRAM bank from the top two address bits for full-space lanes
       # sdram.big_endian changes 32-bit cache lane ordering in generated RTL
       # simfile.name, simfile.big_endian, and simfile.data_type are only consumed by jtutil sdram --sim
       # simfile.data_type may be u16 or u32; if omitted, jtutil derives it from data_width for 16/32-bit lanes
       # cache-lanes wider than 32 bits must set simfile.data_type when simfile.big_endian is true
+    - name: pcm
+      data_width: 8
+      blocks: { count: 8, size: 1kB }
+      # omitting at: makes the lane span the full SDRAM address space
 # BRAM connections
 bram:
     - name: vram
