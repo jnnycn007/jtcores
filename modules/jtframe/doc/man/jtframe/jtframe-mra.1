@@ -222,6 +222,21 @@ Each region entry may use fields such as
 and
 \fBfiles\fR.
 .IP \[bu] 2
+\fBname\fR
+in
+\fBregions=[ ... ]\fR
+may use glob matching with
+\fB*\fR
+and
+\fB?\fR
+to merge several MAME regions into one ROM collection pass. This applies only
+to
+\fBROM.regions\fR
+entries.
+.IP \[bu] 2
+Globbed region entries must match at least one MAME region or the command
+fails.
+.IP \[bu] 2
 \fBsequence=[2,1,0,0]\fR
 can reorder or repeat ROM files within a region.
 .IP \[bu] 2
