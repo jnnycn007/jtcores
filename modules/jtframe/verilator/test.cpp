@@ -633,9 +633,6 @@ JTSim::~JTSim() {
 void JTSim::clock(int n) {
     static int ticks=0;
     static int last_dwnd=0;
-#ifdef _JTFRAME_SIM96
-    n <<= 2;
-#endif
     while( n-- > 0 ) {
         int cur_dwn = game.ioctl_rom | game.ioctl_ram | game.dwnld_busy;
         multi_clock->advance_half_period();
