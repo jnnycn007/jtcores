@@ -1419,6 +1419,44 @@ func Test_game_sdram_template_emits_cache_write_ports(t *testing.T) {
 	}
 }
 
+func Test_game_sdram_template_emits_sdram_bus_latch_parameters(t *testing.T) {
+	sample := `sdram:
+  banks:
+    - buses:
+        - name: obj
+          addr_width: 20
+          data_width: 32
+          latch: OBJ_LATCH
+        - name: ram
+          addr_width: 14
+          data_width: 16
+          rw: true
+`
+	var cfg MemConfig
+	if e := yaml.Unmarshal([]byte(sample), &cfg); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Core = "test"
+	macros.MakeFromMap(nil)
+	if e := cfg.check_sdram(); e != nil {
+		t.Fatal(e)
+	}
+
+	tpl := get_game_sdram_template(t)
+	var verilog strings.Builder
+	if e := tpl.Execute(&verilog, cfg); e != nil {
+		t.Fatal(e)
+	}
+	out := verilog.String()
+
+	if !strings.Contains(out, ".SLOT0_LATCH(OBJ_LATCH)") {
+		t.Fatalf("generated template is missing the requested SDRAM latch parameter\n%s", out)
+	}
+	if strings.Contains(out, ".SLOT1_LATCH(") {
+		t.Fatalf("generated template should not emit latch parameters for writable SDRAM slots\n%s", out)
+	}
+}
+
 func Test_mem_ports_template_emits_cache_write_ports(t *testing.T) {
 	sample := `sdram:
   cache-lanes:

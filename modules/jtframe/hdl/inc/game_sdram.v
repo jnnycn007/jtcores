@@ -417,6 +417,8 @@ jtframe_{{.MemType}}_{{len .Buses}}slot{{with lt 1 (len .Buses)}}s{{end}} #(
     .SLOT{{$index}}_ERASE(0),{{end}}
     {{- else}}{{- with .Offset }}
     .SLOT{{$index}}_OFFSET({{.}}[SDRAMW-2:0]),{{end}}{{end}}
+    {{- if not .Rw }}{{- with .Latch }}
+    .SLOT{{$index}}_LATCH({{.}}),{{end}}{{end}}
     {{- with .Cache_size }}
     .CACHE{{$index}}_SIZE({{.}}),{{end}}
     .SLOT{{$index}}_AW({{ slot_addr_width . }}),

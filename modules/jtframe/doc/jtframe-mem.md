@@ -114,6 +114,7 @@ sdram:
         addr_width: 18
         data_width: 16
         offset: V_OFFS
+        latch: TILES_LATCH
         cache_size: 4
         rw: false
         do_not_erase: true
@@ -196,6 +197,7 @@ bram:
 - SDRAM bus settings:
   - `banks[].buses[].data_width` supports **8**, **16**, **32**.
   - bus `addr_width` is counted in 16-bit words (LSB is bank address bit 0 for 8-bit, bit 1 for 16/32-bit).
+  - `latch` passes a per-slot `SLOTn_LATCH` parameter into the generated SDRAM helper for read-only buses.
   - `cache_size` selects the request cache mix (`0` for regular ROM request path).
   - `do_not_erase` is only meaningful for writable SDRAM banks.
   - `gfx_sort` is limited to supported patterns (`hvvv`, `hvvvv`, `hhvvv`, `hhvvvv`, `vhhvvv` and `x` variants).

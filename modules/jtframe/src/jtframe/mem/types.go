@@ -280,6 +280,7 @@ type SDRAMBus struct {
 
 	Name       string          `yaml:"name"`
 	Offset     string          `yaml:"offset"`
+	Latch      string          `yaml:"latch"`
 	Addr       string          `yaml:"addr"`
 	Addr_width int             `yaml:"addr_width"` // Width for counting all *bytes*
 	Data_width int             `yaml:"data_width"`
@@ -451,6 +452,7 @@ func (bus *SDRAMBus) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		Unless     []string        `yaml:"unless"`
 		Name       string          `yaml:"name"`
 		Offset     string          `yaml:"offset"`
+		Latch      string          `yaml:"latch"`
 		Addr       string          `yaml:"addr"`
 		Addr_width int             `yaml:"addr_width"`
 		Data_width int             `yaml:"data_width"`
@@ -476,6 +478,7 @@ func (bus *SDRAMBus) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	bus.Unless = aux.Unless
 	bus.Name = aux.Name
 	bus.Offset = aux.Offset
+	bus.Latch = aux.Latch
 	bus.Addr = aux.Addr
 	bus.Addr_width = aux.Addr_width
 	bus.Data_width = aux.Data_width
@@ -490,7 +493,7 @@ func (bus *SDRAMBus) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	bus.Simfile = aux.Simfile
 	for key := range raw_map {
 		switch key {
-		case "when", "unless", "name", "offset", "addr", "addr_width", "data_width",
+		case "when", "unless", "name", "offset", "latch", "addr", "addr_width", "data_width",
 			"cache_size", "rw", "do_not_erase", "dsn", "din", "cs", "gfx_sort",
 			"gfx_sort_en", "simfile":
 		default:
