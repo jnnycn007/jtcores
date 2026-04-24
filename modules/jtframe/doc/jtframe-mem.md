@@ -40,7 +40,7 @@ The RC resistance is the parallel equivalent of 1k and 1+1.2.
   - `noswab`: disable byte swapping in the download path.
 - `ports`: additional explicit ports for the game module.
 - `game`: override the default game module name.
-- `clocks`: map of source clocks (`clk24`, `clk48`, `clk`, etc.) to lists of generated CEN definitions.
+- `clocks`: map of source clocks (`clk24`, `clk48`, `clk96`, `clk`) to lists of generated CEN definitions.
 - `audio`: audio mixing/filter setup (`channels`, optional `pcb`, global `rc`, etc.).
 - `sdram`: bank-based SDRAM map or cache-lane map, but never both.
 - `bram`: list of BRAM/ROM/PROM blocks.
@@ -191,9 +191,18 @@ bram:
 - `sdram.cache-lanes` must contain **1–8** entries.
 - `include` entries are loaded then the active `mem.yaml` is reapplied to allow overrides.
 - `params` values are evaluated as macro expressions when `cache-lanes` use `at.offset`/`at.length`.
-- `clock` source keys are arbitrary names (commonly `clk24`, `clk48`, `clk`), each requiring:
-  - either `freq` alone, or `div`/`mul` to derive a frequency from `JTFRAME_MCLK` and `JTFRAME_SDRAM96`.
-  - at least one `outputs` entry.
+- `clocks` is a map from base-clock names to lists of entries. The documented base clocks are `clk24`, `clk48`, `clk96`, and `clk`.
+- For `clocks`, each entry supports:
+  - `outputs`: required list of one or more names. The first output runs at the requested rate; each later output is divided by two from the previous one.
+  - `gate`: optional list of SDRAM bus names. Each name expands to `(<name>_cs & ~<name>_ok)`.
+  - `freq`: optional absolute frequency string. Accepted forms include `3579545`, `8e6`, `12M`, `12.5kHz`, and `8 MHz`.
+  - `mul`, `div`: optional integer factors for the fractional enable generator.
+- If an output name does not already contain `cen`, the generator appends `_cen`.
+- If both `mul` and `div` are non-zero, they take precedence. Otherwise both are derived from `freq`.
+- `freq` suffixes are case-sensitive: `p`, `n`, `u`, `m`, `k`, `M`, `G`, `T`, with optional `Hz`. Values below `1 Hz` are rejected.
+- Base-clock remapping depends on `JTFRAME_SDRAM96`:
+  - without `JTFRAME_SDRAM96`, `clk48` becomes `clk`.
+  - with `JTFRAME_SDRAM96`, `clk96` becomes `clk`.
 - SDRAM bus settings:
   - `banks[].buses[].data_width` supports **8**, **16**, **32**.
   - bus `addr_width` is counted in 16-bit words (LSB is bank address bit 0 for 8-bit, bit 1 for 16/32-bit).

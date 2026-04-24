@@ -76,11 +76,44 @@ or
 Clock-enable families keyed by source clock name (for example,
 \fBclk24\fR,
 \fBclk48\fR,
-\fBclk\fR). Each item may set
-\fBfreq\fR
-(or \fBdiv\fR/\fBmul\fR),
-\fBgate\fR, and
-\fBoutputs\fR.
+\fBclk96\fR,
+or
+\fBclk\fR).
+Each key maps to a YAML list of clock-enable entries.
+Every entry must provide
+\fBoutputs\fR
+and may also set
+\fBfreq\fR,
+\fBdiv\fR,
+\fBmul\fR,
+and
+\fBgate\fR.
+The
+\fBoutputs\fR
+list is ordered: the first output gets the requested rate, and each later
+output is divided by two from the previous one.
+Names that do not already contain
+\fBcen\fR
+get
+\fB_cen\fR
+appended automatically.
+The
+\fBgate\fR
+list names SDRAM buses whose
+\fB<bus>_cs\fR/\fB<bus>_ok\fR
+handshake can pause the enable generator.
+.RS
+.nf
+clocks:
+  clk24:
+    - mul: 1
+      div: 4
+      outputs: [ cpu4, ti1, ti2 ]
+    - freq: 3579545
+      gate: [ pcm ]
+      outputs: [ snd, psg ]
+.fi
+.RE
 .TP
 .B audio
 Global audio mix/filter parameters and per-channel entries.
@@ -206,10 +239,87 @@ If \fBvalue\fR is omitted, the parser uses the macro \fB<name>\fR.
 .B download
 Supported: \fBpre_addr\fR, \fBpost_addr\fR, \fBpost_data\fR, \fBnoswab\fR.
 .TP
+.B clocks
+Supported shape: map of
+\fB<base-clock-name> -> [ clock-enable-entry, ... ]\fR.
+The documented JTFRAME base clocks are
+\fBclk24\fR,
+\fBclk48\fR,
+\fBclk96\fR,
+and
+\fBclk\fR.
+At generation time,
+\fBclk48\fR
+maps to
+\fBclk\fR
+when
+\fBJTFRAME_SDRAM96\fR
+is not defined, and
+\fBclk96\fR
+maps to
+\fBclk\fR
+when it is defined.
+Other keys are passed through unchanged.
+.TP
 .B clocks.<base>[]
-Supported: \fBfreq\fR, \fBdiv\fR, \fBmul\fR, \fBgate\fR, \fBoutputs\fR.
-If \fBfreq\fR is omitted, \fBdiv\fR/\fBmul\fR are used.
-At least one output is required.
+Supported: \fBoutputs\fR, \fBgate\fR, \fBfreq\fR, \fBdiv\fR, \fBmul\fR.
+\fBoutputs\fR is required.
+\fBgate\fR is a list of SDRAM bus names.
+\fBmul\fR and \fBdiv\fR are integers.
+\fBfreq\fR is a string parsed as an absolute frequency.
+.TP
+.B clocks.<base>[].outputs[]
+Required: one or more strings.
+The first output runs at the requested rate; each later output is divided by
+two from the previous one.
+If an output name does not contain
+\fBcen\fR,
+the generator appends
+\fB_cen\fR.
+.TP
+.B clocks.<base>[].gate[]
+Optional list of SDRAM bus names.
+Each entry expands to the gating expression
+\fB(<name>_cs & ~<name>_ok)\fR.
+If omitted, the clock-enable generator is never paused.
+.TP
+.B clocks.<base>[].freq
+Optional absolute frequency string.
+Accepted forms include plain decimal or scientific notation
+(\fB3579545\fR, \fB8e6\fR)
+plus engineering suffixes
+\fBp\fR,
+\fBn\fR,
+\fBu\fR,
+\fBm\fR,
+\fBk\fR,
+\fBM\fR,
+\fBG\fR,
+\fBT\fR,
+with optional
+\fBHz\fR
+(\fB12.5kHz\fR, \fB8 MHz\fR, \fB12M\fR).
+Values below
+\fB1 Hz\fR
+are rejected.
+.TP
+.B clocks.<base>[].mul
+Optional integer numerator for the fractional enable generator.
+If
+\fBmul\fR
+and
+\fBdiv\fR
+are both non-zero, they take precedence over
+\fBfreq\fR.
+.TP
+.B clocks.<base>[].div
+Optional integer denominator for the fractional enable generator.
+If either
+\fBmul\fR
+or
+\fBdiv\fR
+is zero or omitted, the generator derives both factors from
+\fBfreq\fR.
 .TP
 .B ports[]
 Supported: \fBname\fR, \fBmsb\fR, \fBlsb\fR, \fBinput\fR.
@@ -283,9 +393,41 @@ Use exactly one when defining SDRAM.
 \fBaudio.channels[]\fR requires a non-empty \fBname\fR and \fBrsum\fR for every channel.
 Unknown audio \fBmodule\fR values are rejected unless empty.
 .IP \[bu] 2
-\fBclocks\fR entries require at least one output and a finite clock frequency.
-\fBmul\fR/\fBdiv\fR are used to derive frequency when \fBfreq\fR is omitted.
-\fBfreq\fR accepts unit suffixes p, n, u, m, k, M, G, T and optional `Hz`.
+\fBclocks\fR is a map from base clock names to lists of clock-enable entries.
+Each entry requires at least one
+\fBoutputs\fR
+name.
+The first output is the requested rate; later outputs are cascaded divide-by-2
+enables.
+.IP \[bu] 2
+Clock entries may use either explicit non-zero
+\fBmul\fR/\fBdiv\fR
+or an absolute
+\fBfreq\fR.
+If one factor is missing or zero, both factors are derived from
+\fBfreq\fR.
+.IP \[bu] 2
+\fBfreq\fR accepts decimal/scientific notation with optional engineering
+suffixes
+\fBp\fR,
+\fBn\fR,
+\fBu\fR,
+\fBm\fR,
+\fBk\fR,
+\fBM\fR,
+\fBG\fR,
+\fBT\fR
+and optional
+\fBHz\fR.
+Suffixes are case-sensitive:
+\fB8M\fR
+means 8 MHz while
+\fB8m\fR
+means 8 mHz and is rejected for being below 1 Hz.
+.IP \[bu] 2
+\fBgate\fR
+only accepts SDRAM bus names; the generated enable pauses while any listed bus
+is selected but not ready, and recovers missed pulses when the bus resumes.
 .IP \[bu] 2
 SDRAM bank \fBdata_width\fR supports \fB8\fR, \fB16\fR, or \fB32\fR.
 \fBgfx_sort\fR is limited to the supported permutations in parser source.
