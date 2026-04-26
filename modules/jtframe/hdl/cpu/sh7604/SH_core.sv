@@ -1,3 +1,4 @@
+/* verilator tracing_off */
 module SH_core
 #(parameter bit VER=1)//0-SH1,1-SH2
  (
@@ -54,6 +55,54 @@ module SH_core
 	bit [31: 0] GBR;
 	bit [31: 0] VBR;
 	SR_t        SR;
+
+`ifdef VERILATOR_KEEP_CPU
+/* verilator tracing_on */
+	bit [31:0] TRACE_PC;
+	bit [31:0] TRACE_GBR;
+	bit [31:0] TRACE_VBR;
+	bit [31:0] TRACE_SR;
+	bit [31:0] TRACE_EX_PC;
+	bit [31:0] TRACE_MA_PC;
+	bit [31:0] TRACE_WB_PC;
+	bit [31:0] TRACE_R0;
+	bit [31:0] TRACE_R1;
+	bit [31:0] TRACE_R2;
+	bit [31:0] TRACE_R3;
+	bit [31:0] TRACE_R4;
+	bit [31:0] TRACE_R5;
+	bit [31:0] TRACE_R6;
+	bit [31:0] TRACE_R7;
+	bit [31:0] TRACE_R8;
+	bit [31:0] TRACE_R9;
+	bit [31:0] TRACE_R10;
+	bit [31:0] TRACE_R11;
+	bit [31:0] TRACE_R12;
+	bit [31:0] TRACE_R13;
+	bit [31:0] TRACE_R14;
+	bit [31:0] TRACE_R15;
+	bit [31:0] TRACE_PR;
+	bit  [2:0] TRACE_STATE;
+	bit        TRACE_SLEEP;
+	bit        TRACE_IF_STALL;
+	bit        TRACE_ID_STALL;
+	bit        TRACE_EX_STALL;
+	bit        TRACE_MA_STALL;
+	bit        TRACE_WB_STALL;
+	bit        TRACE_BUS_WAIT;
+	bit        TRACE_IF_ACTIVE;
+	bit        TRACE_MA_ACTIVE;
+	bit        TRACE_VECT_ACTIVE;
+	bit        TRACE_INST_SPLIT;
+	bit        TRACE_IFID_STALL;
+	bit        TRACE_MAWB_STALL;
+	bit        TRACE_INT_REQ;
+	bit        TRACE_INT_REQ_LATCH;
+	bit        TRACE_INT_ACCEPT;
+	bit        TRACE_INT_ENTRY;
+	bit        TRACE_STACK_BUSY;
+/* verilator tracing_off */
+`endif
 	
 	PipelineState_t PIPE;
 	bit         IF_STALL;
@@ -103,8 +152,43 @@ module SH_core
 `endif
 	assign REGS_RBN = ID_DECI.RB.N;
 	
-	SH2_regfile regfile (CLK, RST_N, CE, EN, REGS_WAN, REGS_WAD, REGS_WAE, REGS_WBN, REGS_WBD, REGS_WBE, 
-								REGS_RAN, REGS_RAQ, REGS_RBN, REGS_RBQ, REGS_R0Q);
+	SH2_regfile regfile (
+		.CLK     ( CLK      ),
+		.RST_N   ( RST_N    ),
+		.CE      ( CE       ),
+		.EN      ( EN       ),
+		.WA_ADDR ( REGS_WAN ),
+		.WA_D    ( REGS_WAD ),
+		.WAE     ( REGS_WAE ),
+		.WB_ADDR ( REGS_WBN ),
+		.WB_D    ( REGS_WBD ),
+		.WBE     ( REGS_WBE ),
+		.RA_ADDR ( REGS_RAN ),
+		.RA_Q    ( REGS_RAQ ),
+		.RB_ADDR ( REGS_RBN ),
+		.RB_Q    ( REGS_RBQ ),
+		.R0_Q    ( REGS_R0Q )
+`ifdef VERILATOR_KEEP_CPU
+		,
+		.TRACE_R0 ( TRACE_R0  ),
+		.TRACE_R1 ( TRACE_R1  ),
+		.TRACE_R2 ( TRACE_R2  ),
+		.TRACE_R3 ( TRACE_R3  ),
+		.TRACE_R4 ( TRACE_R4  ),
+		.TRACE_R5 ( TRACE_R5  ),
+		.TRACE_R6 ( TRACE_R6  ),
+		.TRACE_R7 ( TRACE_R7  ),
+		.TRACE_R8 ( TRACE_R8  ),
+		.TRACE_R9 ( TRACE_R9  ),
+		.TRACE_R10( TRACE_R10 ),
+		.TRACE_R11( TRACE_R11 ),
+		.TRACE_R12( TRACE_R12 ),
+		.TRACE_R13( TRACE_R13 ),
+		.TRACE_R14( TRACE_R14 ),
+		.TRACE_R15( TRACE_R15 ),
+		.TRACE_PR ( TRACE_PR  )
+`endif
+	);
 
 	
 	//**********************************************************
@@ -764,6 +848,41 @@ module SH_core
 	//WB stage
 	//**********************************************************
 	wire WB_STALL = BUS_STALL | MAWB_STALL;
+
+`ifdef VERILATOR_KEEP_CPU
+	assign TRACE_PC            = PC;
+	assign TRACE_GBR           = GBR;
+	assign TRACE_VBR           = VBR;
+	assign TRACE_SR            = SR & 32'h0000_03f3;
+	assign TRACE_EX_PC         = PIPE.EX.PC;
+	assign TRACE_MA_PC         = PIPE.MA.PC;
+	assign TRACE_WB_PC         = PIPE.WB.PC;
+	assign TRACE_STATE         = STATE;
+	assign TRACE_SLEEP         = SLP;
+	assign TRACE_IF_STALL      = IF_STALL;
+	assign TRACE_ID_STALL      = ID_STALL;
+	assign TRACE_EX_STALL      = EX_STALL;
+	assign TRACE_MA_STALL      = MA_STALL;
+	assign TRACE_WB_STALL      = WB_STALL;
+	assign TRACE_BUS_WAIT      = BUS_WAIT;
+	assign TRACE_IF_ACTIVE     = IF_ACTIVE;
+	assign TRACE_MA_ACTIVE     = MA_ACTIVE;
+	assign TRACE_VECT_ACTIVE   = VECT_ACTIVE;
+	assign TRACE_INST_SPLIT    = INST_SPLIT;
+	assign TRACE_IFID_STALL    = IFID_STALL;
+	assign TRACE_MAWB_STALL    = MAWB_STALL;
+	assign TRACE_INT_REQ       = INT_REQ;
+	assign TRACE_INT_REQ_LATCH = INT_REQ_LATCH;
+	assign TRACE_INT_ACCEPT    = INT_ACP;
+	assign TRACE_INT_ENTRY     = VECT_ACTIVE | PIPE.EX.DI.VECR | PIPE.MA.DI.VECR | PIPE.WB.DI.VECR;
+	assign TRACE_STACK_BUSY    =
+		((PIPE.EX.DI.RA.N == SP) & (PIPE.EX.DI.RA.R | PIPE.EX.DI.RA.W)) |
+		((PIPE.EX.DI.RB.N == SP) & (PIPE.EX.DI.RB.R | PIPE.EX.DI.RB.W)) |
+		((PIPE.MA.DI.RA.N == SP) & (PIPE.MA.DI.RA.R | PIPE.MA.DI.RA.W)) |
+		((PIPE.MA.DI.RB.N == SP) & (PIPE.MA.DI.RB.R | PIPE.MA.DI.RB.W)) |
+		((PIPE.WB.DI.RA.N == SP) & (PIPE.WB.DI.RA.R | PIPE.WB.DI.RA.W)) |
+		((PIPE.WB.DI.RB.N == SP) & (PIPE.WB.DI.RB.R | PIPE.WB.DI.RB.W));
+`endif
 	always @(posedge CLK or negedge RST_N) begin
 		if (!RST_N) begin
 			PIPE.WB2.IR <= '0;
