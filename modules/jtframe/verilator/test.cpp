@@ -821,11 +821,13 @@ int main(int argc, char *argv[]) {
             sim.clock(ticks_48kHz);
             sim.update_wav();
             if( sim.get_frame()==3 ) {
+#ifndef _JTFRAME_SIM_SKIP_VSIZE
                 if( sim.activeh != _JTFRAME_HEIGHT || sim.activew != _JTFRAME_WIDTH ) {
                     fprintf(stderr, "\nERROR: (test.cpp)  video size mismatch. Macros define it as %dx%d but the core outputs %dx%d\n",
                         _JTFRAME_WIDTH, _JTFRAME_HEIGHT, sim.activew, sim.activeh );
                     break;
                 }
+#endif
             }
         }
         while(wait(NULL) != -1);

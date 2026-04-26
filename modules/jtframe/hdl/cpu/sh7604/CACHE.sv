@@ -26,7 +26,11 @@ module SH7604_CACHE (
 	output            IBUS_PREREQ,
 	output            IBUS_BURST,
 	output            IBUS_LOCK,
-	input             IBUS_WAIT
+	input             IBUS_WAIT,
+
+	input             CPS3_DECRYPT,
+	input      [31:0] CPS3_KEY1,
+	input      [31:0] CPS3_KEY2
 );
 
 	import SH7604_PKG::*;
@@ -70,6 +74,35 @@ module SH7604_CACHE (
 	bit         CACHE_ADDR_WRITE;
 	bit         CACHE_PURGE;
 	bit   [5:0] LRU_DATA;
+
+	function automatic [15:0] cps3_rotate_left16(input [15:0] val, input integer n);
+		cps3_rotate_left16 = (val << n) | (val >> (16 - n));
+	endfunction
+
+	function automatic [15:0] cps3_rotxor(input [15:0] val, input [15:0] xorval);
+		reg [15:0] res;
+		begin
+			res = val + cps3_rotate_left16(val, 2);
+			res = cps3_rotate_left16(res, 4) ^ (res & (val ^ xorval));
+			cps3_rotxor = res;
+		end
+	endfunction
+
+	function automatic [31:0] cps3_mask(input [31:0] address, input [31:0] key1, input [31:0] key2);
+		reg [31:0] addr_x;
+		reg [15:0] val;
+		begin
+			addr_x = address ^ key1;
+			val = addr_x[15:0] ^ 16'hffff;
+			val = cps3_rotxor(val, key2[15:0]);
+			val = val ^ addr_x[31:16] ^ 16'hffff;
+			val = cps3_rotxor(val, key2[31:16]);
+			val = val ^ addr_x[15:0] ^ key2[15:0];
+			cps3_mask = {val, val};
+		end
+	endfunction
+
+	wire [31:0] cps3_cache_data_dec = CACHE_DATA ^ cps3_mask({CBUS_A[31:2], 2'b00}, CPS3_KEY1, CPS3_KEY2);
 	
 	function bit [3:0] WayFromLRU(input bit [5:0] lru, input bit two_way);
 		bit [3:0] res;
@@ -605,10 +638,11 @@ module SH7604_CACHE (
 		end
 	end
 	
-	assign CBUS_DO = CCR_SEL ? {4{CCR & CCR_RMASK}} : 
-	                 IBDATA_RDY ? IBUS_DI : 
+	assign CBUS_DO = CCR_SEL ? {4{CCR & CCR_RMASK}} :
+	                 IBDATA_RDY ? IBUS_DI :
+					 (CPS3_DECRYPT && CBUS_ID && CACHE_DATA_AREA) ? cps3_cache_data_dec :
 						  CACHE_DATA;
-	assign CBUS_BUSY = CBUS_REQ && (IBUS_READ || IBUS_READARRAY || IBUS_READ_PEND || IBUS_WRITE_PEND);
+	assign CBUS_BUSY = CBUS_REQ && (IBUS_READ || IBUS_READARRAY || IBUS_READ_PEND || IBUS_WRITE || IBUS_WRITE_PEND);
 						  
 	assign IBUS_A = IBADDR;
 	assign IBUS_DO = IBDATA;
