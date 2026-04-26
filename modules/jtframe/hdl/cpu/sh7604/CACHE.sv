@@ -638,11 +638,12 @@ module SH7604_CACHE (
 		end
 	end
 	
-	assign CBUS_DO = CCR_SEL ? {4{CCR & CCR_RMASK}} :
-	                 IBDATA_RDY ? IBUS_DI :
+assign CBUS_DO = CCR_SEL ? {4{CCR & CCR_RMASK}} :
+					 IBDATA_RDY ? IBUS_DI :
 					 (CPS3_DECRYPT && CBUS_ID && CACHE_DATA_AREA) ? cps3_cache_data_dec :
-						  CACHE_DATA;
-	assign CBUS_BUSY = CBUS_REQ && (IBUS_READ || IBUS_READARRAY || IBUS_READ_PEND || IBUS_WRITE || IBUS_WRITE_PEND);
+					 CACHE_DATA;
+assign CBUS_BUSY = CBUS_REQ && (IBUS_READ || IBUS_READARRAY || IBUS_READ_PEND || IBUS_WRITE_PEND ||
+					(IBUS_WRITE && !IO_AREA));
 						  
 	assign IBUS_A = IBADDR;
 	assign IBUS_DO = IBDATA;

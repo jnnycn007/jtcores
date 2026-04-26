@@ -699,6 +699,9 @@ void JTSim::measure_screen_rate() {
 }
 
 void JTSim::video_dump() {
+#ifdef _JTFRAME_SIM_SKIP_FRAME_DUMP
+    return;
+#endif
     static int LHBLl, LVBLl;
     static int cntw[2], cnth[2];
     static int last_pxlcen=0;
